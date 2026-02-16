@@ -11,12 +11,17 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
+import { existsSync } from "fs";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+
 import { OntologyEngine } from "./ontology/engine.js";
 import { ConstraintEngine } from "./constraints/engine.js";
 import { validateDomainSchema } from "./ontology/schema.js";
 
 import { itsmDomain } from "./domains/itsm/ontology.js";
 import { itsmConstraints } from "./domains/itsm/constraints.js";
+import { loadDomainFromYaml, loadConstraintsFromYaml } from "./loader.js";
 
 import { readResource } from "./server/resources.js";
 import { generateAgentCard } from "./a2a/types.js";
@@ -26,18 +31,43 @@ import { generateAgentCard } from "./a2a/types.js";
 const ontologyEngine = new OntologyEngine();
 const constraintEngine = new ConstraintEngine();
 
-// ── Load ITSM domain ─────────────────────────────────────────
+// ── Load domains (YAML first, TypeScript fallback) ───────────
 
-const itsmErrors = validateDomainSchema(itsmDomain);
-if (itsmErrors.length > 0) {
-  console.error("ITSM domain schema validation errors:", itsmErrors);
-  process.exit(1);
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const domainsDir = resolve(__dirname, "..", "domains");
+const itsmOntologyYaml = resolve(domainsDir, "itsm", "ontology.yaml");
+const itsmConstraintsYaml = resolve(domainsDir, "itsm", "constraints.yaml");
+
+if (existsSync(itsmOntologyYaml)) {
+  console.error("Loading ITSM domain from YAML:", itsmOntologyYaml);
+  const domain = loadDomainFromYaml(itsmOntologyYaml);
+  const errors = validateDomainSchema(domain);
+  if (errors.length > 0) {
+    console.error("ITSM YAML schema validation errors:", errors);
+    process.exit(1);
+  }
+  ontologyEngine.registerDomain(domain);
+} else {
+  console.error("YAML not found, using built-in ITSM TypeScript definitions");
+  const errors = validateDomainSchema(itsmDomain);
+  if (errors.length > 0) {
+    console.error("ITSM schema validation errors:", errors);
+    process.exit(1);
+  }
+  ontologyEngine.registerDomain(itsmDomain);
 }
 
-ontologyEngine.registerDomain(itsmDomain);
-
-for (const constraint of itsmConstraints) {
-  constraintEngine.register(constraint);
+if (existsSync(itsmConstraintsYaml)) {
+  console.error("Loading ITSM constraints from YAML:", itsmConstraintsYaml);
+  const yamlConstraints = loadConstraintsFromYaml(itsmConstraintsYaml);
+  for (const c of yamlConstraints) {
+    constraintEngine.register(c);
+  }
+} else {
+  console.error("YAML not found, using built-in ITSM TypeScript constraints");
+  for (const constraint of itsmConstraints) {
+    constraintEngine.register(constraint);
+  }
 }
 
 // ── Create MCP Server ─────────────────────────────────────────
