@@ -1,0 +1,46 @@
+{
+  "name": "project-basanos",
+  "version": "0.1.0",
+  "description": "A living tarot for the agentic age — semantic ontology and context intelligence over MCP, so your agents finally understand what they're operating on.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "basanos": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "lint": "eslint src/",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "keywords": [
+    "mcp",
+    "ontology",
+    "semantic",
+    "agents",
+    "context",
+    "itsm",
+    "a2a",
+    "knowledge-graph"
+  ],
+  "author": "Leo Francia",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leojacinto/project-basanos"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "typescript": "^5.7.3"
+  }
+}
