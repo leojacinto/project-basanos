@@ -20,10 +20,25 @@ export interface ConstraintVerdict {
   results: ConstraintResult[];
   /** Summary explanation for agent reasoning */
   summary: string;
+  /** ISO timestamp of evaluation */
+  evaluatedAt: string;
+  /** The context that was evaluated */
+  context: ConstraintContext;
+}
+
+export interface AuditEntry {
+  /** Sequential audit ID */
+  id: number;
+  /** ISO timestamp */
+  timestamp: string;
+  /** The full verdict */
+  verdict: ConstraintVerdict;
 }
 
 export class ConstraintEngine {
   private constraints: Map<string, ConstraintDefinition> = new Map();
+  private auditLog: AuditEntry[] = [];
+  private nextAuditId: number = 1;
 
   /**
    * Register a constraint definition.
@@ -53,11 +68,19 @@ export class ConstraintEngine {
     );
 
     if (applicable.length === 0) {
-      return {
+      const verdict: ConstraintVerdict = {
         allowed: true,
         results: [],
         summary: `No constraints apply to action: ${context.intendedAction}`,
+        evaluatedAt: new Date().toISOString(),
+        context,
       };
+      this.auditLog.push({
+        id: this.nextAuditId++,
+        timestamp: verdict.evaluatedAt,
+        verdict,
+      });
+      return verdict;
     }
 
     const results: ConstraintResult[] = [];
@@ -102,11 +125,55 @@ export class ConstraintEngine {
       );
     }
 
-    return {
+    const verdict: ConstraintVerdict = {
       allowed,
       results,
       summary: summaryParts.join(" | "),
+      evaluatedAt: new Date().toISOString(),
+      context,
     };
+
+    this.auditLog.push({
+      id: this.nextAuditId++,
+      timestamp: verdict.evaluatedAt,
+      verdict,
+    });
+
+    return verdict;
+  }
+
+  /**
+   * Get the full audit log of all constraint evaluations.
+   */
+  getAuditLog(): AuditEntry[] {
+    return [...this.auditLog];
+  }
+
+  /**
+   * Get audit entries filtered by action or entity.
+   */
+  getAuditEntriesFor(filter: {
+    action?: string;
+    entityId?: string;
+  }): AuditEntry[] {
+    return this.auditLog.filter((entry) => {
+      if (filter.action && entry.verdict.context.intendedAction !== filter.action) {
+        return false;
+      }
+      if (filter.entityId && entry.verdict.context.targetEntity !== filter.entityId) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Get count of blocked vs allowed verdicts.
+   */
+  getAuditSummary(): { total: number; allowed: number; blocked: number } {
+    const total = this.auditLog.length;
+    const blocked = this.auditLog.filter((e) => !e.verdict.allowed).length;
+    return { total, allowed: total - blocked, blocked };
   }
 
   /**

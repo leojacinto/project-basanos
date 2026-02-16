@@ -202,6 +202,42 @@ server.tool(
   }
 );
 
+server.tool(
+  "basanos_audit_log",
+  "Retrieve the audit trail of all constraint evaluations. Every check_constraints call is logged with timestamp, context, and verdict. Use for compliance, post-mortems, and debugging agent behavior.",
+  {
+    action: z.string().optional().describe("Filter by action (e.g., 'resolve')"),
+    entity_id: z.string().optional().describe("Filter by target entity ID"),
+  },
+  async ({ action, entity_id }) => {
+    const filter: { action?: string; entityId?: string } = {};
+    if (action) filter.action = action;
+    if (entity_id) filter.entityId = entity_id;
+
+    const hasFilter = filter.action || filter.entityId;
+    const entries = hasFilter
+      ? constraintEngine.getAuditEntriesFor(filter)
+      : constraintEngine.getAuditLog();
+    const summary = constraintEngine.getAuditSummary();
+
+    const result = {
+      summary,
+      entries: entries.map((e) => ({
+        id: e.id,
+        timestamp: e.timestamp,
+        action: e.verdict.context.intendedAction,
+        target: e.verdict.context.targetEntity,
+        allowed: e.verdict.allowed,
+        summary: e.verdict.summary,
+      })),
+    };
+
+    return {
+      content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
 // ── Start Server ──────────────────────────────────────────────
 
 async function main() {

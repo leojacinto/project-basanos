@@ -6,6 +6,21 @@
 
 This project brings that concept to the agentic age.
 
+## Why not just use Claude Desktop?
+
+If you're a knowledgeable human sitting at a desk asking Claude about your ServiceNow instance, Claude's reasoning is strong enough to figure out most relationships on the fly. For that use case, Basanos is arguably redundant.
+
+Basanos earns its existence the moment there is no human in the loop:
+
+- **Autonomous agents need encoded judgment.** An agent resolving incidents at 3am can't ask you if there's a change freeze. The ontology is the human judgment, encoded.
+- **Not every model is Claude.** Smaller, cheaper models need domain understanding handed to them. Basanos levels up weaker models with structured context they can't infer.
+- **Multiple agents need shared truth.** Two agents reasoning independently about the same incident will reach different conclusions. Basanos gives them a single source of semantic truth.
+- **Constraints are architectural, not conversational.** A system prompt is a suggestion. A `BLOCK` verdict with entity IDs and audit trail is a guarantee.
+- **Ontology compounds, conversations don't.** Every Claude session starts from zero. Basanos persists and grows.
+- **Testable and auditable.** You can unit test an ontology and audit every constraint verdict. You cannot unit test a conversation.
+
+For the full critical analysis, see [docs/DIFFERENTIATORS.md](docs/DIFFERENTIATORS.md).
+
 ## The Problem
 
 Today's AI agents are dumb execution pipes. They can *do* things but have zero semantic understanding of *what* they're operating on or *why*. The "intelligence" is fully outsourced to the LLM's general reasoning, which means every action is contextually naive.
@@ -77,21 +92,26 @@ npm run inspect
 
 ```
 src/
-├── index.ts                 # MCP server entry point
+├── index.ts                 # MCP server entry point (6 tools, 2 resources)
 ├── ontology/
 │   ├── engine.ts            # Ontology resolution and traversal
 │   ├── types.ts             # Core ontology type system
 │   └── schema.ts            # Schema loading and validation
 ├── constraints/
-│   ├── engine.ts            # Constraint evaluation engine
+│   ├── engine.ts            # Constraint evaluation engine with audit trail
 │   └── types.ts             # Constraint type definitions
 ├── domains/
 │   └── itsm/
 │       ├── ontology.ts      # ITSM entity and relationship definitions
 │       └── constraints.ts   # ITSM business logic constraints
-└── server/
-    ├── resources.ts         # MCP resource handlers
-    └── tools.ts             # MCP tool handlers with constraint metadata
+├── server/
+│   ├── resources.ts         # MCP resource handlers
+│   └── tools.ts             # MCP tool handlers with constraint metadata
+└── test/
+    ├── smoke.ts             # 32-assertion engine test suite
+    └── scenario-autonomous.ts  # 3am incident demo (with vs without Basanos)
+docs/
+└── DIFFERENTIATORS.md       # Critical analysis: why Basanos vs Claude Desktop
 ```
 
 ## Proof Domain: ITSM
