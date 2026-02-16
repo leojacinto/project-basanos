@@ -132,6 +132,33 @@ An agent with Basanos makes measurably better decisions: fewer incorrect escalat
 | **A2A** (Agent2Agent) | Horizontal: agent ↔ agent | 🔜 Planned |
 | **ACP** (Agent Communication Protocol) | Lightweight REST messaging | 🔜 Planned |
 
+## Landscape & Prior Art
+
+The problem Basanos addresses is well-identified in the industry. The implementation gap is what makes this project worth building.
+
+### Who's talking about it
+
+Anthropic's engineering team has outlined the discipline of providing the right information and tools in the right format for an LLM to accomplish a task, a practice increasingly called "context engineering" ([Building Effective Agents](https://www.anthropic.com/research/building-effective-agents)). The thought-leadership circuit broadly argues that metric definition and ontology engineering are fundamentally different disciplines, and that semantic layers alone aren't enough for autonomous agent reasoning.
+
+### Who's building adjacent things
+
+| Project | What it does | How Basanos differs |
+|---------|-------------|---------------------|
+| [**Timbr.ai**](https://timbr.ai) | SQL-native ontology-based semantic layer that turns scattered tables into a queryable knowledge graph with business-friendly concepts and hierarchies. | Focused on data analytics and BI, not agent-native. Not MCP-delivered, not designed for autonomous agent reasoning or constraint enforcement. |
+| [**Palantir Ontology**](https://www.palantir.com/platforms/aip/) | Enterprise ontology within Palantir's data ecosystem. The 800-pound gorilla of "enterprise ontology." | Proprietary walled garden. Not an open protocol-native tool. Requires full Palantir platform buy-in. |
+| [**AtScale**](https://www.atscale.com) | Universal semantic layer for BI metrics governance. Defines "what does revenue mean" consistently across tools. | Governs metric definitions, not entity relationships, business constraints, or operational guardrails for autonomous action. |
+| [**dbt MetricFlow**](https://docs.getdbt.com/docs/build/about-metricflow) | Semantic graph for defining and querying metrics in dbt. Ensures consistent metric computation across consumers. | Same category as AtScale: metric semantics, not domain ontology or agent constraint awareness. |
+| [**ZBrain**](https://zbrain.ai) | Enterprise agentic AI platform with a hybrid approach combining knowledge graphs as semantic filters with vector stores. | Closer conceptually, but it's a proprietary platform play, not an open composable building block. |
+| [**Hiflylabs**](https://hiflylabs.com/blog) | Published a reference architecture describing a semantic layer (OWL/RDF in a knowledge graph), interaction layer (APIs/tools), agent layer, and orchestration layer. | Closest conceptual match, but it's a blog post describing what should exist, not a shipped artifact. |
+
+### What nobody has done
+
+The specific intersection Basanos targets: a **protocol-native** (MCP/A2A), **domain-modelled**, **constraint-aware** ontology server designed specifically for **autonomous agent reasoning**, shipped as an **open-source** project.
+
+The pieces exist in thought leadership, in proprietary platforms, and in academic knowledge graph work. Nobody has assembled them into an open, composable building block that an agent can discover and consume via standard protocols.
+
+The "dbt for agent ontology" doesn't exist yet. That's Basanos.
+
 ## Philosophy
 
 - **No allegiance.** Platform-agnostic, model-agnostic, vendor-agnostic.
