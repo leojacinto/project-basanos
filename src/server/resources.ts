@@ -9,47 +9,6 @@
 import type { OntologyEngine } from "../ontology/engine.js";
 import type { ConstraintEngine } from "../constraints/engine.js";
 
-export interface ResourceDefinition {
-  uri: string;
-  name: string;
-  description: string;
-  mimeType: string;
-}
-
-export function listResources(
-  ontologyEngine: OntologyEngine,
-  constraintEngine: ConstraintEngine
-): ResourceDefinition[] {
-  const resources: ResourceDefinition[] = [];
-
-  for (const domain of ontologyEngine.getDomains()) {
-    resources.push({
-      uri: `basanos://ontology/${domain.name}`,
-      name: `${domain.label} Ontology`,
-      description: `Complete semantic ontology for the ${domain.label} domain — entity types, properties, relationships, and their meanings.`,
-      mimeType: "text/markdown",
-    });
-
-    resources.push({
-      uri: `basanos://constraints/${domain.name}`,
-      name: `${domain.label} Constraints`,
-      description: `Business logic constraints for the ${domain.label} domain — conditions agents must evaluate before taking actions.`,
-      mimeType: "text/markdown",
-    });
-
-    for (const entityType of domain.entityTypes) {
-      resources.push({
-        uri: `basanos://ontology/${domain.name}/${entityType.name}`,
-        name: `${entityType.label} Schema`,
-        description: entityType.description,
-        mimeType: "application/json",
-      });
-    }
-  }
-
-  return resources;
-}
-
 export function readResource(
   uri: string,
   ontologyEngine: OntologyEngine,

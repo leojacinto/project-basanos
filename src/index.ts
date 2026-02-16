@@ -19,6 +19,7 @@ import { itsmDomain } from "./domains/itsm/ontology.js";
 import { itsmConstraints } from "./domains/itsm/constraints.js";
 
 import { readResource } from "./server/resources.js";
+import { generateAgentCard } from "./a2a/types.js";
 
 // ── Initialize engines ────────────────────────────────────────
 
@@ -46,58 +47,88 @@ const server = new McpServer({
   version: "0.1.0",
 });
 
-// ── Register Resources ────────────────────────────────────────
+// ── Register Resources (dynamic per domain) ─────────────────
 
-server.resource(
-  "ontology-itsm",
-  "basanos://ontology/itsm",
-  {
-    description:
-      "Complete semantic ontology for the ITSM domain — entity types, properties, relationships, and their meanings.",
-    mimeType: "text/markdown",
-  },
-  async (uri) => {
-    const result = readResource(
-      uri.href,
-      ontologyEngine,
-      constraintEngine
-    );
-    return {
-      contents: [
-        {
+for (const domain of ontologyEngine.getDomains()) {
+  server.resource(
+    `ontology-${domain.name}`,
+    `basanos://ontology/${domain.name}`,
+    {
+      description: `Complete semantic ontology for the ${domain.label} domain.`,
+      mimeType: "text/markdown",
+    },
+    async (uri) => {
+      const result = readResource(uri.href, ontologyEngine, constraintEngine);
+      return {
+        contents: [{
           uri: uri.href,
           text: result?.content ?? "Resource not found",
           mimeType: result?.mimeType ?? "text/plain",
-        },
-      ],
-    };
-  }
-);
+        }],
+      };
+    }
+  );
 
-server.resource(
-  "constraints-itsm",
-  "basanos://constraints/itsm",
-  {
-    description:
-      "Business logic constraints for the ITSM domain — conditions agents must evaluate before taking actions.",
-    mimeType: "text/markdown",
-  },
-  async (uri) => {
-    const result = readResource(
-      uri.href,
-      ontologyEngine,
-      constraintEngine
-    );
-    return {
-      contents: [
-        {
+  server.resource(
+    `constraints-${domain.name}`,
+    `basanos://constraints/${domain.name}`,
+    {
+      description: `Business logic constraints for the ${domain.label} domain.`,
+      mimeType: "text/markdown",
+    },
+    async (uri) => {
+      const result = readResource(uri.href, ontologyEngine, constraintEngine);
+      return {
+        contents: [{
           uri: uri.href,
           text: result?.content ?? "Resource not found",
           mimeType: result?.mimeType ?? "text/plain",
-        },
-      ],
-    };
+        }],
+      };
+    }
+  );
+
+  for (const entityType of domain.entityTypes) {
+    server.resource(
+      `entity-${domain.name}-${entityType.name}`,
+      `basanos://ontology/${domain.name}/${entityType.name}`,
+      {
+        description: entityType.description,
+        mimeType: "application/json",
+      },
+      async (uri) => {
+        const result = readResource(uri.href, ontologyEngine, constraintEngine);
+        return {
+          contents: [{
+            uri: uri.href,
+            text: result?.content ?? "Resource not found",
+            mimeType: result?.mimeType ?? "application/json",
+          }],
+        };
+      }
+    );
   }
+}
+
+const agentCard = generateAgentCard({
+  url: "stdio://basanos",
+  domains: ontologyEngine.getDomains().map((d) => d.name),
+});
+
+server.resource(
+  "agent-card",
+  "basanos://agent-card",
+  {
+    description: "A2A Agent Card describing Basanos capabilities, skills, and preconditions/postconditions.",
+    mimeType: "application/json",
+  },
+  async (uri) => ({
+    contents: [{
+      uri: uri.href,
+      text: JSON.stringify(agentCard, null, 2),
+      mimeType: "application/json",
+    }],
+  })
 );
 
 // ── Register Tools ────────────────────────────────────────────
