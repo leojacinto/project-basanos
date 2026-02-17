@@ -197,8 +197,17 @@ export class ServiceNowConnector {
         "name,element,column_label,internal_type,mandatory,reference,choice,max_length,comments",
       sysparm_limit: "500",
       sysparm_display_value: "false",
-    })) as { result: DictionaryEntry[] };
-    return data.result || [];
+    })) as { result: Array<Record<string, unknown>> };
+    // Normalize: SN may return reference/internal_type as {value, link} objects
+    return (data.result || []).map((entry) => {
+      const norm: Record<string, string> = {};
+      for (const [k, v] of Object.entries(entry)) {
+        norm[k] = (v && typeof v === "object" && "value" in (v as Record<string, unknown>))
+          ? String((v as Record<string, string>).value || "")
+          : String(v ?? "");
+      }
+      return norm as unknown as DictionaryEntry;
+    });
   }
 
   /**

@@ -193,11 +193,11 @@ Walks through the full Basanos narrative against a live ServiceNow instance:
 
 The scenario no single system can handle alone. Basanos enriches context from **both** ServiceNow and Jira, then evaluates constraints that span both systems:
 
-- **INC0025428** - Blocked by ServiceNow change freeze AND Jira deploy
-- **INC0025729** - ServiceNow says OK, but Jira has an active deploy. **BLOCKED.** ServiceNow business rules would have let this through.
+- **INC0025428** - ServiceNow has a change freeze, Jira has no deploy. **BLOCKED.** Jira-only tooling would have let this through.
+- **INC0025729** - ServiceNow has no change freeze, but Jira has an active deploy. **BLOCKED.** ServiceNow business rules would have let this through.
 - **INC0018834** - Both systems clear. Allowed.
 
-This is the differentiator: no single system sees both risks. Basanos evaluates constraints across system boundaries.
+Both directions are demonstrated: ServiceNow catches what Jira missed, and Jira catches what ServiceNow missed. No single system sees both risks.
 
 ## Quick Start with Docker (Recommended)
 

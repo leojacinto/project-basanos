@@ -454,7 +454,6 @@ app.post("/api/demo/execute", express.json(), async (req, res) => {
 // ── Mock Jira (Multi-system Demo) ────────────────────────────
 
 const mockJiraDeploys = [
-  { key: "DEPLOY-4421", summary: "PowerKart v4.2 Release", status: "In Progress", service: "cartservice", assignee: "j.chen", created: "2026-02-15" },
   { key: "DEPLOY-4455", summary: "Recommendation Engine ML Model Update", status: "In Progress", service: "recommendationservice", assignee: "s.patel", created: "2026-02-16" },
   { key: "DEPLOY-4460", summary: "Payment Gateway TLS Upgrade", status: "Done", service: "ePayment", assignee: "m.jones", created: "2026-02-10" },
 ];
@@ -1758,8 +1757,8 @@ function dashboardHtml(): string {
           'Try resolving an incident whose CI has an active Jira deploy - even if ServiceNow has no change freeze.' +
         '</p>' +
         '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">' +
-          '<button class="btn-primary" style="font-size:0.8rem;background:#e74c3c;" onclick="multiResolve(&apos;INC0025428&apos;)">INC0025428 (SN freeze + Jira deploy)</button>' +
-          '<button class="btn-primary" style="font-size:0.8rem;background:#e67e22;" onclick="multiResolve(&apos;INC0025729&apos;)">INC0025729 (Jira deploy only)</button>' +
+          '<button class="btn-primary" style="font-size:0.8rem;background:#e74c3c;" onclick="multiResolve(&apos;INC0025428&apos;)">INC0025428 (SN freeze, no Jira deploy)</button>' +
+          '<button class="btn-primary" style="font-size:0.8rem;background:#e67e22;" onclick="multiResolve(&apos;INC0025729&apos;)">INC0025729 (Jira deploy, no SN freeze)</button>' +
           '<button class="btn-primary" style="font-size:0.8rem;background:var(--success);" onclick="multiResolve(&apos;INC0018834&apos;)">INC0018834 (both clear)</button>' +
           '<button style="font-size:0.8rem;background:none;border:1px solid var(--border);color:var(--text);border-radius:0.4rem;padding:0.4rem 0.8rem;cursor:pointer;" onclick="multiClear()">Clear</button>' +
         '</div>' +

@@ -36,6 +36,10 @@ All notable changes to project-basanos are documented here.
 - Dual enrichment: queries ServiceNow for incident/CI/changes, queries Jira for active deploys
 - Chat UI shows source labels per constraint result ([ServiceNow] vs [Jira])
 
+### Bug fixes
+- **Relationships showing 0 in Overview**: ServiceNow `sys_dictionary` returns `reference` field as `{value, link}` object, not a plain string. Schema importer now normalizes all fields before processing. Re-run Import & Discover to regenerate ontology with relationships.
+- **Multi-system demo data**: Removed cartservice from mock Jira deploys (SN change freeze and Jira deploy on the same CI was logically redundant). Demo now shows both directions: SN catches what Jira missed, and Jira catches what SN missed.
+
 ### Dashboard improvements
 - MCP proxy Connect tab: single MCP Server URL input, server discovery button
 - Environment config API serves `mcpServerUrl` for form pre-population
