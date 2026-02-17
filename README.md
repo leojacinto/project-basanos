@@ -122,14 +122,14 @@ sequenceDiagram
 
     Operator->>Basanos: Credentials (URL, user, pass)
 
-    rect rgb(40, 40, 60)
+    rect rgba(200, 200, 255, 0.15)
     Note over Basanos,ServiceNow: Step 1: Connect
     Basanos->>ServiceNow: GET /api/now/table/incident?limit=1
     ServiceNow-->>Basanos: 200 OK
     Basanos-->>Operator: Connected
     end
 
-    rect rgb(40, 60, 40)
+    rect rgba(200, 255, 200, 0.15)
     Note over Basanos,ServiceNow: Step 2: Import Schemas
     loop For each table (incident, cmdb_ci, cmdb_ci_service, ...)
         Basanos->>ServiceNow: GET /api/now/table/sys_dictionary?name={table}
@@ -140,7 +140,7 @@ sequenceDiagram
     Note over Basanos: Map types, detect relationships, write ontology.yaml
     end
 
-    rect rgb(60, 40, 40)
+    rect rgba(255, 200, 200, 0.15)
     Note over Basanos,ServiceNow: Step 3: Sync Entities
     loop For each ITSM table
         Basanos->>ServiceNow: GET /api/now/table/{table}?limit=100
@@ -149,7 +149,7 @@ sequenceDiagram
     Note over Basanos: Convert to typed entities, wire cross-references
     end
 
-    rect rgb(60, 60, 40)
+    rect rgba(255, 255, 200, 0.15)
     Note over Basanos,ServiceNow: Step 4: Discover Constraints
     Basanos->>ServiceNow: Query change_request, task_sla
     ServiceNow-->>Basanos: Change freezes, SLA breaches
