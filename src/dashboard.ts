@@ -1551,7 +1551,10 @@ function dashboardHtml(): string {
           ? '<p style="font-size:0.85rem;font-weight:600;">' + promoted.length + ' active constraint(s) for resolve/close:</p>' +
             promoted.map(function(c) {
               return '<div style="padding:0.5rem;margin:0.3rem 0;border:1px solid var(--success);border-radius:0.4rem;font-size:0.8rem;border-left:3px solid var(--success);">' +
-                '<strong>' + c.name + '</strong> <span class="badge badge-type">' + c.severity + '</span>' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                  '<div><strong>' + c.name + '</strong> <span class="badge badge-type">' + c.severity + '</span></div>' +
+                  '<button style="font-size:0.75rem;padding:3px 10px;border:1px solid var(--border);border-radius:0.4rem;background:none;color:var(--text-secondary);cursor:pointer;" onclick="demoDemote(&apos;' + c.id + '&apos;)">Demote</button>' +
+                '</div>' +
                 '<div style="color:var(--text-secondary);margin-top:0.25rem;">' + c.description + '</div>' +
               '</div>';
             }).join('')
@@ -1590,6 +1593,20 @@ function dashboardHtml(): string {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'promoted' }),
+      });
+      if (res.ok) {
+        demoMessages = [];
+        await renderDemo(document.getElementById('content'));
+      }
+    } catch(e) { /* ignore */ }
+  }
+
+  async function demoDemote(constraintId) {
+    try {
+      var res = await fetch('/api/constraints/' + encodeURIComponent(constraintId) + '/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'candidate' }),
       });
       if (res.ok) {
         demoMessages = [];
