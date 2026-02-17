@@ -249,7 +249,8 @@ app.get("/api/mcp-proxy/status", async (_req, res) => {
 });
 
 app.post("/api/mcp-proxy/connect", express.json(), async (req, res) => {
-  const { instanceUrl, clientId, clientSecret, serverName } = req.body;
+  const { instanceUrl, clientId, serverName, useEnvSecret } = req.body;
+  const clientSecret = req.body.clientSecret || (useEnvSecret ? process.env.SERVICENOW_CLIENT_SECRET : "");
   if (!instanceUrl || !clientId || !clientSecret) {
     return res.status(400).json({ error: "instanceUrl, clientId, and clientSecret are required" });
   }
@@ -1390,15 +1391,15 @@ function dashboardHtml(): string {
           <div style="margin-top:0.5rem;">
             <div class="form-group">
               <label>Instance URL</label>
-              <input id="mcp-url" type="text" placeholder="https://your-instance.service-now.com" />
+              <input id="mcp-url" type="text" placeholder="https://your-instance.service-now.com" value="\${envConfig.instanceUrl}" />
             </div>
             <div class="form-group">
               <label>OAuth Client ID <span style="font-size:0.8rem;color:var(--text-secondary);">(from Machine Identity Console)</span></label>
-              <input id="mcp-client-id" type="text" placeholder="OAuth Client ID for MCP" />
+              <input id="mcp-client-id" type="text" placeholder="OAuth Client ID for MCP" value="\${envConfig.clientId}" />
             </div>
             <div class="form-group">
               <label>OAuth Client Secret</label>
-              <input id="mcp-client-secret" type="password" placeholder="OAuth Client Secret" />
+              <input id="mcp-client-secret" type="password" placeholder="\${envConfig.hasClientSecret ? 'Set in .env' : 'OAuth Client Secret'}" />
             </div>
             <div class="form-group">
               <label>MCP Server Name <span style="font-size:0.8rem;color:var(--text-secondary);">(default: Quickstart Server)</span></label>
@@ -1483,14 +1484,16 @@ function dashboardHtml(): string {
     var resultEl = document.getElementById('mcp-connect-result');
     resultEl.innerHTML = '<p style="color:var(--text-secondary);">Connecting...</p>';
     try {
+      var secretVal = document.getElementById('mcp-client-secret').value;
       var res = await fetch('/api/mcp-proxy/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           instanceUrl: document.getElementById('mcp-url').value,
           clientId: document.getElementById('mcp-client-id').value,
-          clientSecret: document.getElementById('mcp-client-secret').value,
+          clientSecret: secretVal || undefined,
           serverName: document.getElementById('mcp-server-name').value || 'sn_mcp_server_default',
+          useEnvSecret: !secretVal,
         }),
       });
       var data = await res.json();
