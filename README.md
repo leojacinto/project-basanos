@@ -1,43 +1,44 @@
 # project-basanos
 
-> **Multi-system Agentic Rules Engine** - Discovers, promotes, and enforces rules for AI agents across multiple enterprise systems.
+> A reference implementation exploring how AI agents can discover, promote, and enforce rules across enterprise systems - built against ServiceNow.
 
 **Basanos** (βάσανος) is Greek for a touchstone used to test the purity of gold. In Mike Carey's *Lucifer*, the Basanos is a living tarot deck that reads relationships, predicts consequences, and understands deep architecture. It served no master.
 
-This project brings that idea to AI agents.
+## What this is
 
-Basanos is a **proof-of-concept**, not production middleware. It validates an architectural thesis with one working connector (ServiceNow) and a mock cross-system demo. See [What Works Today](#what-works-today) and [What is Next](#what-is-next) for the honest breakdown.
+Basanos is an applied study, not a product. It explores a specific question: when AI agents operate across multiple enterprise systems, how should cross-system rules be discovered, reviewed, and enforced?
 
-## The Problem
+The study is built against ServiceNow's ITSM ecosystem because that is what I know. The ServiceNow connector is real and works against live instances. A mock Jira integration demonstrates how enforcement could extend across system boundaries. The concepts apply to any multi-system environment, but the implementation is rooted in ServiceNow.
 
-AI agents can call APIs across ServiceNow, Jira, Salesforce, and more. But no single system knows what the others are doing. ServiceNow business rules cannot see Jira deploys. Jira automation cannot see ServiceNow change freezes. When agents operate across these systems, there is no shared enforcement layer.
+This is a solo open-source project. MCP gateways and agent governance are becoming an active category with funded teams (Cerbos, TrojAI, SAFE-MCP, Red Hat). Basanos is not competing with them. It is a working prototype that explores the pattern and documents what was learned.
 
-System prompts say "please don't resolve incidents during a change freeze." Basanos says `BLOCKED` with evidence, entity IDs, and an audit trail.
+## The question
 
-## What Works Today
+ServiceNow has business rules. Jira has automation. Salesforce has flows. Each system enforces rules within its own boundary. But no single system sees what the others are doing. A ServiceNow business rule cannot check whether Jira has an active deploy on the same service. Jira automation cannot check whether ServiceNow has a change freeze.
 
-Basanos is a working prototype. Everything below is implemented and runnable.
+When AI agents operate across these systems, who enforces rules that span the boundary?
 
-**ServiceNow connector** - connects to a live ServiceNow instance via REST API. Imports table schemas from `sys_dictionary`, syncs live entities, and acts as an MCP proxy gateway that intercepts tool calls, enriches context, and enforces rules before forwarding to ServiceNow's native MCP Server.
+Basanos explores one answer: an MCP proxy gateway that sits between agents and target systems, intercepts tool calls, enriches context from multiple sources, and returns `BLOCK` or `ALLOW` verdicts before the action executes. A blocked action never reaches the target system. This is runtime enforcement, not context injection - Basanos does not dump rules into a system prompt and hope the LLM follows them.
 
-**Rules engine** - YAML-driven. Evaluates promoted rules against live system state per-request and returns `BLOCK` or `ALLOW` verdicts with evidence and audit trail. This is not context injection - a blocked action never reaches the target system. Only promoted rules matching the intended action are checked, not every rule in the system.
+## What the code does
 
-**Rule discovery** - heuristic pattern analysis that scans your data for known anti-patterns (change freezes, SLA breaches, P1 reopen rates, CI failure patterns). This is not ML or AI inference - these are coded algorithms. The value is surfacing guardrails you have not built yet, from your actual data.
+**ServiceNow connector** - connects to a live instance via REST API. Imports table schemas from `sys_dictionary`, syncs live entities, and acts as an MCP proxy gateway that intercepts tool calls, enriches context, and enforces rules before forwarding to ServiceNow's native MCP Server.
 
-**Human-in-the-loop lifecycle** - discovered rules start as candidates. A human reviews and promotes them before they enforce. No rule fires without human review. Demote or disable at any time from the dashboard.
+**Rules engine** - YAML-driven. Rules are loaded into memory at startup and evaluated per-request against live system state. Only promoted rules matching the intended action are checked. Returns `BLOCK` or `ALLOW` with evidence and audit trail.
 
-**Cross-system demo** - mock Jira data demonstrates how enforcement works across system boundaries. The demo shows both directions: ServiceNow catching what Jira missed, and Jira catching what ServiceNow missed.
+**Rule discovery** - heuristic pattern analysis (not ML or AI inference). Coded algorithms scan your data for known anti-patterns: change freezes, SLA breaches, P1 reopen rates, CI failure patterns. The output is rule candidates, not enforced rules.
 
-## What is Next
+**Human-in-the-loop lifecycle** - discovered rules start as candidates. A human reviews and promotes them before they enforce. No rule fires without human approval. Demote or disable at any time.
 
-These are design goals, not shipped features.
+**Cross-system demo** - mock Jira data demonstrates how enforcement would work across system boundaries. ServiceNow data is live; Jira data is mock. The demo shows both directions: ServiceNow catching what Jira missed, and Jira catching what ServiceNow missed.
 
-- **Jira connector** - production connector to query Jira REST API for deploys, sprints, and status. Currently demo-only with mock data.
-- **Salesforce connector** - same pattern as ServiceNow. Architecture supports it; no connector implemented yet.
-- **Agent client integrations** - Basanos runs as an MCP server that any MCP client can call, but no pre-built Claude/GPT integrations ship with the repo yet.
-- **A2A protocol** - agent card types are defined; no runtime A2A server yet. This will allow other agents to discover what Basanos knows and can enforce.
-- **Additional discovery heuristics** - more pattern detectors beyond the current set (e.g., assignment group capacity, approval chain violations).
-- **Cross-system semantic alignment** - mapping equivalent concepts across systems (e.g., is a Jira "Epic" the same as a ServiceNow "Story"? Is Jira "Done" equivalent to ServiceNow "Closed"?). This is where the hard ontology problem lives and where real cross-system value would compound. Not yet tackled.
+### Scope and limitations
+
+- Only one production connector exists (ServiceNow). Jira is mock data for demo purposes. Salesforce is not implemented.
+- Rule discovery is heuristic pattern matching, not machine learning. It surfaces known anti-patterns, not novel ones.
+- Basanos runs as an MCP server that any MCP client can call, but no pre-built agent integrations (Claude, GPT, etc.) ship with the repo.
+- Cross-system semantic alignment (is a Jira "Epic" the same as a ServiceNow "Story"?) is not tackled. That is where the hard ontology problem lives.
+- This is a reference implementation, not production middleware. There is no CI/CD, no security audit, no release versioning beyond v0.1.0.
 
 ## Architecture
 
@@ -379,16 +380,15 @@ The proxy enriches each tool call with live context (incident priority, CI, acti
 
 ### Why not just use ServiceNow business rules?
 
-ServiceNow's server-side rules (business rules, data policies, ACLs) protect ServiceNow data regardless of how requests arrive. They are mature and cover their own surface well.
+ServiceNow's server-side rules (business rules, data policies, ACLs) protect ServiceNow data regardless of how requests arrive. They are mature and cover their own surface well. For a single-system scenario, they are the right answer.
 
-Basanos adds value at a different layer:
+Basanos explores the layer above - what happens when the rule needs to see across system boundaries:
 
-- **Cross-system rules** - "Don't resolve this incident if there's an open deploy in Jira for the same service." ServiceNow rules cannot see Jira.
-- **Discovery** - Basanos finds rule patterns from your data that you have not built as business rules yet.
-- **Protocol gateway** - One enforcement point for all MCP traffic, regardless of which agent or system is calling.
-- **Vendor-neutral** - Same rules engine regardless of target system. Today: ServiceNow. Planned: Jira, Salesforce, custom REST APIs.
+- **Cross-system awareness** - "Don't resolve this incident if there's an open deploy in Jira for the same service." ServiceNow rules cannot see Jira.
+- **Discovery** - heuristic analysis that surfaces known anti-patterns from your data as rule candidates for human review.
+- **Protocol gateway** - a single enforcement point for MCP tool calls, regardless of which agent or system is calling.
 
-For a single-system, single-vendor scenario, business rules are simpler. Basanos is for the layer above - where multiple systems, multiple agents, and multiple protocols intersect.
+This is not a replacement for business rules. It is a study of what a complementary layer might look like.
 
 ## Security & Authentication
 
@@ -412,46 +412,41 @@ The connector auto-detects which mode to use based on your `.env`:
 - **Data at rest.** The generated `ontology.yaml` and `provenance.json` contain table structures, field names, and record counts. Not credentials, but structural metadata. Treat these files accordingly in sensitive environments.
 - **Credentials in `.env`.** The `.env` file is gitignored. For production, use OAuth with scoped, read-only service accounts.
 
-## Landscape & Prior Art
+## Related Work
 
-The problem is well-identified. Anthropic calls it "context engineering" ([Building Effective Agents](https://www.anthropic.com/research/building-effective-agents)). Everyone agrees agents need structured domain knowledge. The gap is that nobody has shipped an open tool for it.
+The problem of agent governance is well-identified. Anthropic calls it "context engineering" ([Building Effective Agents](https://www.anthropic.com/research/building-effective-agents)). The space is moving fast.
 
-### Adjacent projects
+### MCP governance and policy enforcement
 
-| Project | What it does | Where Basanos differs |
-|---------|-------------|---------------------|
-| [**Timbr.ai**](https://timbr.ai) | SQL knowledge graph for BI and analytics. | Built for dashboards, not agents. No MCP, no constraints. |
-| [**Palantir Ontology**](https://www.palantir.com/platforms/aip/) | Enterprise ontology inside Palantir's platform. | Proprietary. Requires full Palantir buy-in. |
-| [**AtScale**](https://www.atscale.com) | Metric governance layer for BI tools. | Governs "what does revenue mean," not entity relationships or business rules. |
-| [**dbt MetricFlow**](https://docs.getdbt.com/docs/build/about-metricflow) | Metric definitions in dbt. | Same category as AtScale: metrics, not domain models. |
-| [**ZBrain**](https://zbrain.ai) | Agentic platform with knowledge graphs + vector stores. | Closer in concept, but proprietary platform play. |
-| [**Hiflylabs**](https://hiflylabs.com/blog) | Reference architecture for semantic + agent layers. | A blog post describing what should exist. Not a shipped tool. |
+| Project | What it does |
+|---------|-------------|
+| [**Cerbos**](https://cerbos.dev) | Policy enforcement layer for MCP. Linux Foundation backing. |
+| [**SAFE-MCP**](https://openid.net) | MCP security standard. Linux Foundation + OpenID Foundation. |
+| [**TrojAI Defend**](https://trojai.com) | Runtime enforcement for MCP tool calls. Commercial. |
+| **Red Hat OpenShift AI** | MCP governance integrated into platform. |
 
-### MCP governance (emerging category)
+These are funded teams building production-grade solutions. Basanos explores similar territory as a study, not as a competitor.
 
-Since Basanos started, MCP gateways and agent governance have become an active category:
+### Enterprise knowledge and ontology
 
-| Project | What it does | Status |
-|---------|-------------|--------|
-| [**Cerbos**](https://cerbos.dev) | Policy enforcement layer for MCP | Linux Foundation backing, enterprise sales |
-| [**SAFE-MCP**](https://openid.net) | MCP security standard | Linux Foundation + OpenID Foundation |
-| [**TrojAI Defend**](https://trojai.com) | Runtime enforcement for MCP tool calls | Commercial, shipped |
-| **Red Hat OpenShift AI** | MCP governance baked into platform | Enterprise platform play |
+| Project | What it does |
+|---------|-------------|
+| [**Palantir Ontology**](https://www.palantir.com/platforms/aip/) | Enterprise ontology inside Palantir's platform. Proprietary. |
+| [**Timbr.ai**](https://timbr.ai) | SQL knowledge graph for BI and analytics. |
+| [**ZBrain**](https://zbrain.ai) | Agentic platform with knowledge graphs + vector stores. |
 
-These are funded teams solving the "enforcement layer for agent tool calls" problem. Basanos overlaps with this space.
+### What Basanos explores differently
 
-### Where Basanos sits
+Basanos combines MCP proxy, YAML rules engine, heuristic rule discovery, and cross-system enforcement in a single open-source codebase. The individual pieces exist elsewhere (often in better-resourced projects). The value of this study is in wiring them together against a real ServiceNow instance and documenting how they interact.
 
-The specific combination of MCP proxy + YAML rules engine + rule discovery + cross-system enforcement does not exist as a single open-source package today. But the individual pieces are being built by companies with more resources. Basanos is a proof-of-concept that validates the pattern. It is not competing with funded teams for production deployments.
+## Concepts Explored
 
-## Design Principles
+### Design choices
 
-### Core philosophy
-
-- **No allegiance.** Works with any platform, any model, any vendor.
-- **Infrastructure over hype.** A durable layer, not another wrapper.
-- **Depth over breadth.** One domain done right beats ten done shallow.
-- **Business logic, not security.** Guardrails for correctness, not threat detection.
+- **Depth over breadth.** One domain (ITSM/ServiceNow) done well, rather than shallow coverage of many.
+- **Runtime enforcement, not context injection.** Verdicts are returned before the action executes. Rules are not injected into prompts.
+- **Business logic, not security.** Guardrails for correctness (change freezes, SLA awareness), not threat detection.
+- **Complement, not compete.** Existing system rules (business rules, automation, flows) are the right answer within their boundary. This explores what sits above.
 
 ### Rule lifecycle
 
@@ -468,26 +463,19 @@ candidate  --->  promoted  --->  disabled
 - **Promoted**: reviewed by a human and actively enforced. Agents calling `basanos_check_constraints` will receive block/warn verdicts from these.
 - **Disabled**: explicitly paused. Was promoted, now turned off (e.g., during a maintenance window).
 
-### Complement, don't replace
-
-Most systems of record already have their own rule engines (ServiceNow Business Rules, Salesforce Flows, Jira Automation). Basanos discovers patterns and surfaces them as guardrails for agents. It does not replace those engines.
-
-The right workflow is: Basanos discovers a pattern, a human promotes it as an agent guardrail, and if deeper enforcement is needed, the rule gets implemented in the system of record itself. Basanos is the touchstone, not the courthouse.
-
 ### The 80/20 controls
 
 The dashboard exposes two controls per rule:
 1. **Status** (candidate / promoted / disabled)
 2. **Severity** (block / warn / info)
-3. That's it.
 
-Editing conditions, operators, entity scopes, and other deep rule logic belongs in YAML files, reviewed by architects in version control. The dashboard is for operational decisions, not rule authoring.
+Deep rule logic (conditions, operators, entity scopes) lives in YAML files under version control. The dashboard is for operational decisions, not rule authoring.
 
 ## Contributing
 
-project-basanos is open source and welcomes contributors. The "project-" prefix is intentional: this is a living effort, not a finished artifact.
+project-basanos is open source. The "project-" prefix is intentional - this is an exploration, not a finished product.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+If the concepts here are interesting to you, contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
