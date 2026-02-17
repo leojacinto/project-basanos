@@ -307,6 +307,11 @@ app.post("/api/import", async (req, res) => {
       const dYaml = resolve(outputDir, "discovered-constraints.yaml");
       if (existsSync(cYaml)) for (const c of reloadC(cYaml)) constraintEngine.register(c);
       if (existsSync(dYaml)) for (const c of reloadC(dYaml)) constraintEngine.register(c);
+      // Re-apply saved overrides so promotions survive re-discovery
+      for (const [id, overrides] of Object.entries(constraintOverrides)) {
+        if (overrides.status) constraintEngine.updateConstraintStatus(id, overrides.status as import("./constraints/types.js").ConstraintStatus);
+        if (overrides.severity) constraintEngine.updateConstraintSeverity(id, overrides.severity as import("./constraints/types.js").ConstraintSeverity);
+      }
     }
 
     res.json({
