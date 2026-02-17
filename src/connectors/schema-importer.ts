@@ -182,7 +182,20 @@ export async function importSchemas(
     sortKeys: false,
   });
   writeFileSync(`${outputDir}/ontology.yaml`, yamlContent, "utf-8");
+
+  const provenance = {
+    source: connector.getInstanceUrl(),
+    importedAt: new Date().toISOString(),
+    pipeline: "basanos cli import",
+    tablesImported: entityTypes.length,
+    fieldsImported: totalFields,
+    referencesFound: totalRefs,
+    tables: tables,
+  };
+  writeFileSync(`${outputDir}/provenance.json`, JSON.stringify(provenance, null, 2), "utf-8");
+
   console.log(`\n✅ Wrote ${outputDir}/ontology.yaml`);
+  console.log(`✅ Wrote ${outputDir}/provenance.json`);
   console.log(`   ${entityTypes.length} entity types, ${totalFields} fields, ${totalRefs} relationships`);
 
   return {

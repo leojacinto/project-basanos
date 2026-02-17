@@ -45,6 +45,10 @@ export class ServiceNowConnector {
       Buffer.from(`${config.username}:${config.password}`).toString("base64");
   }
 
+  getInstanceUrl(): string {
+    return this.config.instanceUrl;
+  }
+
   /**
    * Make an authenticated GET request to the ServiceNow REST API.
    */

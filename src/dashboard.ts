@@ -9,7 +9,7 @@
 
 import express from "express";
 import net from "net";
-import { existsSync, readdirSync } from "fs";
+import { existsSync, readdirSync, readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { OntologyEngine } from "./ontology/engine.js";
@@ -116,6 +116,87 @@ app.get("/api/audit", (_req, res) => {
   const log = constraintEngine.getAuditLog();
   const summary = constraintEngine.getAuditSummary();
   res.json({ summary, entries: log });
+});
+
+app.get("/api/provenance", (_req, res) => {
+  const results: Record<string, unknown>[] = [];
+  if (existsSync(domainsDir)) {
+    for (const entry of readdirSync(domainsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const provPath = resolve(domainsDir, entry.name, "provenance.json");
+      if (existsSync(provPath)) {
+        const data = JSON.parse(readFileSync(provPath, "utf-8"));
+        results.push({ domainDir: entry.name, ...data });
+      } else {
+        results.push({
+          domainDir: entry.name,
+          source: "hand-crafted",
+          importedAt: null,
+          note: "Manually authored YAML, not imported from a live system",
+        });
+      }
+    }
+  }
+  res.json(results);
+});
+
+app.post("/api/connect", async (req, res) => {
+  const { instanceUrl, username, password } = req.body;
+  if (!instanceUrl || !username || !password) {
+    return res.status(400).json({ error: "Missing instanceUrl, username, or password" });
+  }
+  try {
+    const { ServiceNowConnector } = await import("./connectors/servicenow.js");
+    const connector = new ServiceNowConnector({ instanceUrl, username, password });
+    const result = await connector.testConnection();
+    res.json(result);
+  } catch (err) {
+    res.json({ success: false, message: String(err) });
+  }
+});
+
+app.post("/api/import", async (req, res) => {
+  const { instanceUrl, username, password, tables } = req.body;
+  if (!instanceUrl || !username || !password) {
+    return res.status(400).json({ error: "Missing credentials" });
+  }
+  try {
+    const { ServiceNowConnector } = await import("./connectors/servicenow.js");
+    const { importSchemas } = await import("./connectors/schema-importer.js");
+    const { syncAllTables } = await import("./connectors/entity-sync.js");
+    const { discoverConstraints } = await import("./connectors/constraint-discovery.js");
+
+    const connector = new ServiceNowConnector({ instanceUrl, username, password });
+    const importTables = tables || ["incident", "cmdb_ci", "cmdb_ci_service", "change_request", "problem", "sys_user_group"];
+    const outputDir = resolve(domainsDir, "servicenow-live");
+
+    const importResult = await importSchemas(connector, importTables, outputDir);
+
+    const syncResult = await syncAllTables(connector, ontologyEngine, { limit: 100 });
+
+    const discovered = await discoverConstraints(connector, resolve(outputDir, "discovered-constraints.yaml"));
+
+    // Reload domains
+    const { loadDomainFromYaml: reload, loadConstraintsFromYaml: reloadC } = await import("./loader.js");
+    const liveYaml = resolve(outputDir, "ontology.yaml");
+    if (existsSync(liveYaml)) {
+      const domain = reload(liveYaml);
+      ontologyEngine.registerDomain(domain);
+      const cYaml = resolve(outputDir, "constraints.yaml");
+      const dYaml = resolve(outputDir, "discovered-constraints.yaml");
+      if (existsSync(cYaml)) for (const c of reloadC(cYaml)) constraintEngine.register(c);
+      if (existsSync(dYaml)) for (const c of reloadC(dYaml)) constraintEngine.register(c);
+    }
+
+    res.json({
+      success: true,
+      import: { tables: importResult.tablesImported, fields: importResult.fieldsImported, relationships: importResult.referencesFound },
+      sync: { entities: syncResult.totalSynced, errors: syncResult.totalErrors },
+      discovery: { constraints: discovered.length, evidence: discovered.map((c) => ({ name: c.name, severity: c.severity, evidence: c.evidence })) },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
 });
 
 // ── Serve Dashboard HTML ──────────────────────────────────────
@@ -410,6 +491,28 @@ function dashboardHtml(): string {
     }
 
     .back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .form-group input {
+      width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border);
+      border-radius: 0.5rem; background: var(--bg); color: var(--text); font-size: 0.9rem;
+    }
+    .btn-primary {
+      background: var(--accent); color: white; border: none; border-radius: 0.5rem;
+      padding: 0.6rem 1.5rem; cursor: pointer; font-size: 0.9rem; font-weight: 600;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.4rem; }
+    .status-connected { background: var(--success); }
+    .status-disconnected { background: var(--danger); }
+    .provenance-card { border-left: 3px solid var(--accent); padding-left: 1rem; }
+    .log-output {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 0.5rem;
+      padding: 1rem; font-family: monospace; font-size: 0.8rem; max-height: 300px;
+      overflow-y: auto; white-space: pre-wrap; margin-top: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -435,6 +538,7 @@ function dashboardHtml(): string {
     <button onclick="showTab('constraints')">Constraints</button>
     <button onclick="showTab('agent-card')">Agent Card</button>
     <button onclick="showTab('audit')">Audit Trail</button>
+    <button onclick="showTab('connect')">Connect</button>
   </nav>
   <main>
     <div id="content">
@@ -447,6 +551,7 @@ function dashboardHtml(): string {
   let domainData = null;
   let constraintData = null;
   let agentCardData = null;
+  let provenanceData = [];
   let currentTab = 'overview';
   let currentDomain = '';
 
@@ -469,14 +574,16 @@ function dashboardHtml(): string {
   }
 
   async function loadDomain(name) {
-    const [domainRes, constraintRes, cardRes] = await Promise.all([
+    const [domainRes, constraintRes, cardRes, provRes] = await Promise.all([
       fetch(\`/api/domains/\${name}\`),
       fetch(\`/api/domains/\${name}/constraints\`),
       fetch('/api/agent-card'),
+      fetch('/api/provenance'),
     ]);
     domainData = await domainRes.json();
     constraintData = await constraintRes.json();
     agentCardData = await cardRes.json();
+    provenanceData = await provRes.json();
     showTab(currentTab);
   }
 
@@ -501,7 +608,7 @@ function dashboardHtml(): string {
   function showTab(tab) {
     currentTab = tab;
     document.querySelectorAll('nav button').forEach((b, i) => {
-      const tabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit'];
+      const tabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit', 'connect'];
       b.classList.toggle('active', tabs[i] === tab);
     });
     const el = document.getElementById('content');
@@ -511,6 +618,7 @@ function dashboardHtml(): string {
       case 'constraints': renderConstraints(el); break;
       case 'agent-card': renderAgentCard(el); break;
       case 'audit': renderAudit(el); break;
+      case 'connect': renderConnect(el); break;
     }
   }
 
@@ -557,7 +665,64 @@ function dashboardHtml(): string {
           ).join('')}
         </div>
       </div>
+      \${renderProvenanceSection()}
     \`;
+  }
+
+  function renderProvenanceSection() {
+    const prov = provenanceData.find(p => p.domainDir === currentDomain || p.source === currentDomain)
+      || provenanceData.find(p => currentDomain.includes(p.domainDir));
+    if (!prov) {
+      const handCrafted = provenanceData.find(p => p.source === 'hand-crafted');
+      if (handCrafted) {
+        return \`<div class="card provenance-card" style="margin-top:1rem;">
+          <h2>Data Source</h2>
+          <p><span class="status-dot status-disconnected"></span> <strong>Hand-crafted YAML</strong></p>
+          <p style="margin-top:0.5rem;color:var(--text-secondary);">
+            This domain was manually authored. It is not connected to a live system.
+            Use the <strong>Connect</strong> tab to import from a ServiceNow instance.
+          </p>
+        </div>\`;
+      }
+      return '';
+    }
+    if (prov.source === 'hand-crafted') {
+      return \`<div class="card provenance-card" style="margin-top:1rem;">
+        <h2>Data Source</h2>
+        <p><span class="status-dot status-disconnected"></span> <strong>Hand-crafted YAML</strong></p>
+        <p style="margin-top:0.5rem;color:var(--text-secondary);">
+          This domain was manually authored. Not connected to a live system.
+          Use the <strong>Connect</strong> tab to import from ServiceNow.
+        </p>
+      </div>\`;
+    }
+    return \`<div class="card provenance-card" style="margin-top:1rem;">
+      <h2>Data Source <span class="badge badge-info">Live Import</span></h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:0.75rem;">
+        <div>
+          <p><strong>Instance:</strong> <span class="status-dot status-connected"></span>\${prov.source || 'Unknown'}</p>
+          <p><strong>Imported:</strong> \${prov.importedAt ? new Date(prov.importedAt).toLocaleString() : 'Unknown'}</p>
+          <p><strong>Pipeline:</strong> \${prov.pipeline || 'basanos cli'}</p>
+        </div>
+        <div>
+          <p><strong>Tables:</strong> \${prov.tablesImported || '?'} imported</p>
+          <p><strong>Fields:</strong> \${prov.fieldsImported || '?'} mapped</p>
+          <p><strong>Relationships:</strong> \${prov.referencesFound || '?'} discovered</p>
+        </div>
+      </div>
+      \${prov.discoveryEvidence ? \`
+        <h3 style="margin-top:1rem;">Constraint Discovery Evidence</h3>
+        <div style="margin-top:0.5rem;">
+          \${prov.discoveryEvidence.map(e =>
+            \`<div style="padding:0.3rem 0;font-size:0.85rem;">
+              <span class="badge \${{block:'badge-block',warn:'badge-warn',info:'badge-info'}[e.severity]}">\${e.severity}</span>
+              <strong>\${e.name}</strong>
+              <span style="color:var(--text-secondary);margin-left:0.5rem;">\${e.evidence}</span>
+            </div>\`
+          ).join('')}
+        </div>
+      \` : ''}
+    </div>\`;
   }
 
   function renderEntities(el) {
@@ -715,6 +880,148 @@ function dashboardHtml(): string {
         \`).join('')
       }
     \`;
+  }
+
+  function renderConnect(el) {
+    el.innerHTML = \`
+      <div class="card">
+        <h2>Connect to ServiceNow</h2>
+        <p style="color:var(--text-secondary);margin-bottom:1rem;">
+          Enter your ServiceNow instance credentials to import schemas, sync entities,
+          and discover constraints from live data. This proves the ontology is real, not static YAML.
+        </p>
+        <div class="form-group">
+          <label>Instance URL</label>
+          <input id="snow-url" type="text" placeholder="https://your-instance.service-now.com" />
+        </div>
+        <div class="form-group">
+          <label>Username</label>
+          <input id="snow-user" type="text" placeholder="admin" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input id="snow-pass" type="password" placeholder="Password" />
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <button class="btn-primary" onclick="testConnection()">Test Connection</button>
+          <button class="btn-primary" id="btn-import" onclick="runImport()" disabled>Import &amp; Discover</button>
+        </div>
+        <div id="connect-status" style="margin-top:1rem;"></div>
+        <div id="connect-log" class="log-output" style="display:none;"></div>
+      </div>
+      <div class="card" style="margin-top:1rem;">
+        <h2>Data Provenance</h2>
+        <p style="color:var(--text-secondary);margin-bottom:1rem;">
+          Shows where each loaded domain came from, when it was imported, and what evidence supports its constraints.
+        </p>
+        \${provenanceData.length === 0
+          ? '<p class="empty-state">No domains loaded</p>'
+          : provenanceData.map(p => \`
+            <div class="card provenance-card" style="margin:0.75rem 0;">
+              <h3>\${p.domainDir}</h3>
+              \${p.source === 'hand-crafted'
+                ? '<p><span class="status-dot status-disconnected"></span> Hand-crafted YAML (not from a live system)</p>'
+                : \`
+                  <p><span class="status-dot status-connected"></span> <strong>\${p.source}</strong></p>
+                  <p>Imported: \${p.importedAt ? new Date(p.importedAt).toLocaleString() : 'Unknown'}</p>
+                  <p>Tables: \${p.tablesImported || '?'} | Fields: \${p.fieldsImported || '?'} | Relationships: \${p.referencesFound || '?'}</p>
+                  \${p.constraintsDiscovered ? '<p>Constraints discovered: ' + p.constraintsDiscovered + '</p>' : ''}
+                  \${p.discoveryEvidence ? p.discoveryEvidence.map(e =>
+                    '<div style="font-size:0.85rem;padding:0.2rem 0;"><span class=\\"badge ' +
+                    ({block:'badge-block',warn:'badge-warn',info:'badge-info'}[e.severity] || 'badge-info') +
+                    '\\">' + e.severity + '</span> ' + e.name + ' <span style=\\"color:var(--text-secondary)\\">' + e.evidence + '</span></div>'
+                  ).join('') : ''}
+                \`
+              }
+            </div>
+          \`).join('')
+        }
+      </div>
+    \`;
+  }
+
+  async function testConnection() {
+    const url = document.getElementById('snow-url').value;
+    const user = document.getElementById('snow-user').value;
+    const pass = document.getElementById('snow-pass').value;
+    const status = document.getElementById('connect-status');
+    status.innerHTML = '<p style="color:var(--text-secondary);">Testing connection...</p>';
+
+    try {
+      const res = await fetch('/api/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceUrl: url, username: user, password: pass }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        status.innerHTML = '<p><span class="status-dot status-connected"></span> <strong>Connected:</strong> ' + data.message + '</p>';
+        document.getElementById('btn-import').disabled = false;
+      } else {
+        status.innerHTML = '<p><span class="status-dot status-disconnected"></span> <strong>Failed:</strong> ' + data.message + '</p>';
+      }
+    } catch (err) {
+      status.innerHTML = '<p><span class="status-dot status-disconnected"></span> <strong>Error:</strong> ' + err + '</p>';
+    }
+  }
+
+  async function runImport() {
+    const url = document.getElementById('snow-url').value;
+    const user = document.getElementById('snow-user').value;
+    const pass = document.getElementById('snow-pass').value;
+    const status = document.getElementById('connect-status');
+    const log = document.getElementById('connect-log');
+    const btn = document.getElementById('btn-import');
+
+    btn.disabled = true;
+    btn.textContent = 'Running pipeline...';
+    log.style.display = 'block';
+    log.textContent = 'Starting full pipeline: import → sync → discover...\\n';
+    status.innerHTML = '<p style="color:var(--text-secondary);">Running pipeline (this may take 30-60 seconds)...</p>';
+
+    try {
+      const res = await fetch('/api/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceUrl: url, username: user, password: pass }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        log.textContent += '\\n✅ Schema Import:\\n';
+        log.textContent += '   Tables: ' + data.import.tables + '\\n';
+        log.textContent += '   Fields: ' + data.import.fields + '\\n';
+        log.textContent += '   Relationships: ' + data.import.relationships + '\\n';
+        log.textContent += '\\n✅ Entity Sync:\\n';
+        log.textContent += '   Entities synced: ' + data.sync.entities + '\\n';
+        log.textContent += '   Errors: ' + data.sync.errors + '\\n';
+        log.textContent += '\\n✅ Constraint Discovery:\\n';
+        log.textContent += '   Constraints found: ' + data.discovery.constraints + '\\n';
+        data.discovery.evidence.forEach(e => {
+          log.textContent += '   • [' + e.severity + '] ' + e.name + ' — ' + e.evidence + '\\n';
+        });
+        log.textContent += '\\nPipeline complete. Switch domains in the dropdown to explore.';
+        status.innerHTML = '<p><span class="status-dot status-connected"></span> <strong>Pipeline complete!</strong> Imported ' + data.import.tables + ' tables, synced ' + data.sync.entities + ' entities, discovered ' + data.discovery.constraints + ' constraints.</p>';
+
+        // Refresh domain list
+        const listRes = await fetch('/api/domains');
+        allDomains = await listRes.json();
+        const select = document.getElementById('domain-select');
+        select.innerHTML = allDomains.map(d =>
+          '<option value="' + d.name + '"' + (d.name === 'servicenow' ? ' selected' : '') + '>' + d.label + ' (' + d.entityTypeCount + ' types)</option>'
+        ).join('');
+        if (allDomains.find(d => d.name === 'servicenow')) {
+          await switchDomain('servicenow');
+        }
+      } else {
+        log.textContent += '\\n❌ Error: ' + data.error;
+        status.innerHTML = '<p><span class="status-dot status-disconnected"></span> <strong>Pipeline failed:</strong> ' + data.error + '</p>';
+      }
+    } catch (err) {
+      log.textContent += '\\n❌ Error: ' + err;
+      status.innerHTML = '<p><span class="status-dot status-disconnected"></span> <strong>Error:</strong> ' + err + '</p>';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Import & Discover';
   }
 
   init();

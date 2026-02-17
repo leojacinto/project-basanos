@@ -7,7 +7,8 @@
  * then generates candidate constraint YAML for review.
  */
 
-import { writeFileSync } from "fs";
+import { writeFileSync, existsSync, readFileSync } from "fs";
+import { dirname, resolve } from "path";
 import { dump as yamlDump } from "js-yaml";
 import type { ServiceNowConnector } from "./servicenow.js";
 
@@ -222,6 +223,22 @@ export async function discoverConstraints(
     );
     writeFileSync(outputPath, yamlContent, "utf-8");
     console.log(`\n✅ Wrote ${discovered.length} discovered constraints to ${outputPath}`);
+
+    // Update provenance with discovery results
+    const provenancePath = resolve(dirname(outputPath), "provenance.json");
+    let provenance: Record<string, unknown> = {};
+    if (existsSync(provenancePath)) {
+      provenance = JSON.parse(readFileSync(provenancePath, "utf-8"));
+    }
+    provenance.discoveredAt = new Date().toISOString();
+    provenance.constraintsDiscovered = discovered.length;
+    provenance.discoveryEvidence = discovered.map((c) => ({
+      id: c.id,
+      name: c.name,
+      severity: c.severity,
+      evidence: c.evidence,
+    }));
+    writeFileSync(provenancePath, JSON.stringify(provenance, null, 2), "utf-8");
   } else {
     console.log("\n⚠️  No constraints discovered (insufficient data or access)");
   }
