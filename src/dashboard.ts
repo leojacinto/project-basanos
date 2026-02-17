@@ -1036,34 +1036,38 @@ function dashboardHtml(): string {
         <div id="connect-status" style="margin-top:1rem;"></div>
         <div id="connect-log" class="log-output" style="display:none;"></div>
       </div>
-      <div class="card" style="margin-top:1rem;">
-        <h2>Data Provenance</h2>
-        <p style="color:var(--text-secondary);margin-bottom:1rem;">
-          Shows where each loaded domain came from, when it was imported, and what evidence supports its constraints.
-        </p>
-        \${provenanceData.length === 0
-          ? '<p class="empty-state">No domains loaded</p>'
-          : provenanceData.map(p => \`
-            <div class="card provenance-card" style="margin:0.75rem 0;">
-              <h3>\${p.domainDir}</h3>
-              \${p.source === 'hand-crafted'
-                ? '<p><span class="status-dot status-disconnected"></span> Hand-crafted YAML (not from a live system)</p>'
-                : \`
-                  <p><span class="status-dot status-connected"></span> <strong>\${p.source}</strong></p>
-                  <p>Imported: \${p.importedAt ? new Date(p.importedAt).toLocaleString() : 'Unknown'}</p>
-                  <p>Tables: \${p.tablesImported || '?'} | Fields: \${p.fieldsImported || '?'} | Relationships: \${p.referencesFound || '?'}</p>
-                  \${p.constraintsDiscovered ? '<p>Constraints discovered: ' + p.constraintsDiscovered + '</p>' : ''}
-                  \${p.discoveryEvidence ? p.discoveryEvidence.map(e =>
-                    '<div style="font-size:0.85rem;padding:0.2rem 0;"><span class=\\"badge ' +
-                    ({block:'badge-block',warn:'badge-warn',info:'badge-info'}[e.severity] || 'badge-info') +
-                    '\\">' + e.severity + '</span> ' + e.name + ' <span style=\\"color:var(--text-secondary)\\">' + e.evidence + '</span></div>'
-                  ).join('') : ''}
-                \`
-              }
-            </div>
-          \`).join('')
+      \${(function() {
+        if (provenanceData.length === 0) return '<div class="card" style="margin-top:1rem;"><p class="empty-state">No domains loaded</p></div>';
+        const active = provenanceData.find(p => p.domainDir === currentDomain) || provenanceData[0];
+        const others = provenanceData.filter(p => p !== active);
+
+        function renderProv(p) {
+          if (p.source === 'hand-crafted') {
+            return '<p><span class="status-dot status-disconnected"></span> Hand-crafted YAML (not from a live system)</p>';
+          }
+          return '<p><span class="status-dot status-connected"></span> <strong>' + p.source + '</strong></p>' +
+            '<p>Imported: ' + (p.importedAt ? new Date(p.importedAt).toLocaleString() : 'Unknown') + '</p>' +
+            '<p>Tables: ' + (p.tablesImported || '?') + ' | Fields: ' + (p.fieldsImported || '?') + ' | Relationships: ' + (p.referencesFound || '?') + '</p>' +
+            (p.constraintsDiscovered ? '<p>Constraints discovered: ' + p.constraintsDiscovered + '</p>' : '') +
+            (p.discoveryEvidence ? p.discoveryEvidence.map(function(e) {
+              return '<div style="font-size:0.85rem;padding:0.2rem 0;"><span class="badge ' +
+                ({block:'badge-block',warn:'badge-warn',info:'badge-info'}[e.severity] || 'badge-info') +
+                '">' + e.severity + '</span> ' + e.name + ' <span style="color:var(--text-secondary)">' + e.evidence + '</span></div>';
+            }).join('') : '');
         }
-      </div>
+
+        return '<div class="card" style="margin-top:1rem;">' +
+          '<h2>Active Domain: ' + active.domainDir + '</h2>' +
+          renderProv(active) +
+          '</div>' +
+          (others.length > 0
+            ? '<details style="margin-top:0.75rem;"><summary style="cursor:pointer;color:var(--accent);font-weight:600;padding:0.5rem 0;">All domains (' + provenanceData.length + ')</summary>' +
+              others.map(function(p) {
+                return '<div class="card provenance-card" style="margin:0.75rem 0;"><h3>' + p.domainDir + '</h3>' + renderProv(p) + '</div>';
+              }).join('') +
+              '</details>'
+            : '');
+      })()}
     \`;
   }
 
