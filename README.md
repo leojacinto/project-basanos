@@ -1,44 +1,44 @@
 # project-basanos
 
-> *A living tarot for the agentic age. Semantic ontology and context intelligence over MCP, so your agents finally understand what they're operating on.*
+> *A living tarot for the agentic age. Gives AI agents a real understanding of what they're operating on, not just API access.*
 
-**Basanos** (βάσανος) is the ancient Greek word for a touchstone used to test the purity of gold. In Mike Carey's *Lucifer*, the Basanos is a living tarot deck that gained sentience: it doesn't just contain information, it interprets the structure of reality itself. It reads relationships, predicts consequences, understands deep architecture. It served no master.
+**Basanos** (βάσανος) is Greek for a touchstone used to test the purity of gold. In Mike Carey's *Lucifer*, the Basanos is a living tarot deck that reads relationships, predicts consequences, and understands deep architecture. It served no master.
 
-This project brings that concept to the agentic age.
+This project brings that idea to AI agents.
 
 ## Why not just use Claude Desktop?
 
-If you're a knowledgeable human sitting at a desk asking Claude about your ServiceNow instance, Claude's reasoning is strong enough to figure out most relationships on the fly. For that use case, Basanos is arguably redundant.
+If you're a human asking Claude about your ServiceNow instance, Claude is smart enough to figure out most things on the fly. Basanos is redundant for that.
 
-Basanos earns its existence the moment there is no human in the loop:
+Basanos matters when there is no human in the loop:
 
-- **Autonomous agents need encoded judgment.** An agent resolving incidents at 3am can't ask you if there's a change freeze. The ontology is the human judgment, encoded.
-- **Not every model is Claude.** Smaller, cheaper models need domain understanding handed to them. Basanos levels up weaker models with structured context they can't infer.
-- **Multiple agents need shared truth.** Two agents reasoning independently about the same incident will reach different conclusions. Basanos gives them a single source of semantic truth.
-- **Constraints are architectural, not conversational.** A system prompt is a suggestion. A `BLOCK` verdict with entity IDs and audit trail is a guarantee.
-- **Ontology compounds, conversations don't.** Every Claude session starts from zero. Basanos persists and grows.
-- **Testable and auditable.** You can unit test an ontology and audit every constraint verdict. You cannot unit test a conversation.
+- **3am agents can't ask you questions.** An agent resolving incidents overnight needs to *know* there's a change freeze, not guess.
+- **Not every model is Claude.** Smaller, cheaper models need domain knowledge handed to them. Basanos gives them what they can't infer.
+- **Multiple agents need one truth.** Two agents reasoning about the same incident independently will disagree. Basanos gives them a shared map.
+- **System prompts are suggestions. Verdicts are guarantees.** A `BLOCK` with entity IDs and an audit trail beats "please don't do this" in a prompt.
+- **Conversations reset. Knowledge persists.** Every chat starts from zero. Basanos compounds over time.
+- **You can test a knowledge model. You can't test a conversation.**
 
-For the full critical analysis, see [docs/DIFFERENTIATORS.md](docs/DIFFERENTIATORS.md).
+For the full analysis, see [docs/DIFFERENTIATORS.md](docs/DIFFERENTIATORS.md).
 
 ## The Problem
 
-Today's AI agents are dumb execution pipes. They can *do* things but have zero semantic understanding of *what* they're operating on or *why*. The "intelligence" is fully outsourced to the LLM's general reasoning, which means every action is contextually naive.
+Most AI agents today can *do* things but don't understand *what* they're working with. They call APIs, get data back, and hope the LLM figures out the rest. That works until it doesn't.
 
-An MCP server that lets you query ServiceNow incidents is table stakes. An MCP server that provides a **typed ontology** of how those incidents relate to CMDB CIs, change requests, business services, SLA contracts, and the humans who own them? That doesn't exist.
+An MCP server that queries ServiceNow incidents? That's just a REST wrapper. An MCP server that knows how those incidents connect to CMDB items, change requests, business services, SLA contracts, and the teams who own them? That's what's missing.
 
 ## What Basanos Does
 
-Basanos is a **protocol-native semantic context server** that sits between agents and the systems they operate on, providing:
+Basanos sits between your agents and enterprise systems, giving agents three things they don't have today:
 
-### Domain Ontology as MCP Resources
-Not "here's a table you can query" but "here's the relationship graph of this domain, typed and traversable." An agent consuming Basanos doesn't just get incident records. It gets the understanding that this P1 incident affects a business service with an SLA penalty clause, owned by a VP who escalates within 30 minutes.
+### 1. A map of how things connect
+Not "here's a table" but "here's how incidents, services, CIs, and SLAs relate to each other." An agent using Basanos doesn't just get incident records. It understands that this P1 affects a business service with an SLA penalty, owned by a VP who escalates within 30 minutes.
 
-### Constraint-Aware Guardrails as MCP Tool Metadata
-When Basanos exposes a "resolve incident" tool, it also exposes the business constraints: *don't auto-resolve if there's an active change freeze*, *don't reassign if the assigned group has workload limits*. These aren't security guardrails. They're **business logic guardrails** that require domain knowledge to define.
+### 2. Business rules that actually enforce
+When Basanos exposes a "resolve incident" action, it also checks: *is there a change freeze? Is this group overloaded? Has the SLA already breached?* These aren't security rules. They're **business logic** that requires domain knowledge to define.
 
-### A2A-Ready Agent Cards
-When another agent discovers Basanos via A2A, it sees typed capabilities with preconditions and postconditions, like a proper API contract but for agent reasoning.
+### 3. Agent-to-agent discovery
+Other agents can discover what Basanos knows via A2A, seeing its capabilities like an API contract: what it can do, what it needs, and what it guarantees.
 
 ## Architecture
 
@@ -275,7 +275,7 @@ erDiagram
     Business_Service ||--o{ Configuration_Item : "supported by"
 ```
 
-ITSM was chosen as the first domain because it has rich entity relationships, well-defined business constraints, and clear measurability. An agent with Basanos makes measurably better decisions: fewer incorrect escalations, proper change freeze awareness, accurate impact assessment.
+ITSM is the first domain because the relationships are rich, the business rules are clear, and the impact is measurable. An agent with Basanos makes better decisions: fewer wrong escalations, awareness of change freezes, and accurate impact assessment.
 
 ## Protocols
 
@@ -287,36 +287,30 @@ ITSM was chosen as the first domain because it has rich entity relationships, we
 
 ## Landscape & Prior Art
 
-The problem Basanos addresses is well-identified in the industry. The implementation gap is what makes this project worth building.
+The problem is well-identified. Anthropic calls it "context engineering" ([Building Effective Agents](https://www.anthropic.com/research/building-effective-agents)). Everyone agrees agents need structured domain knowledge. The gap is that nobody has shipped an open tool for it.
 
-### Who's talking about it
+### Adjacent projects
 
-Anthropic's engineering team has outlined the discipline of providing the right information and tools in the right format for an LLM to accomplish a task, a practice increasingly called "context engineering" ([Building Effective Agents](https://www.anthropic.com/research/building-effective-agents)). The thought-leadership circuit broadly argues that metric definition and ontology engineering are fundamentally different disciplines, and that semantic layers alone aren't enough for autonomous agent reasoning.
-
-### Who's building adjacent things
-
-| Project | What it does | How Basanos differs |
+| Project | What it does | Where Basanos differs |
 |---------|-------------|---------------------|
-| [**Timbr.ai**](https://timbr.ai) | SQL-native ontology-based semantic layer that turns scattered tables into a queryable knowledge graph with business-friendly concepts and hierarchies. | Focused on data analytics and BI, not agent-native. Not MCP-delivered, not designed for autonomous agent reasoning or constraint enforcement. |
-| [**Palantir Ontology**](https://www.palantir.com/platforms/aip/) | Enterprise ontology within Palantir's data ecosystem. The 800-pound gorilla of "enterprise ontology." | Proprietary walled garden. Not an open protocol-native tool. Requires full Palantir platform buy-in. |
-| [**AtScale**](https://www.atscale.com) | Universal semantic layer for BI metrics governance. Defines "what does revenue mean" consistently across tools. | Governs metric definitions, not entity relationships, business constraints, or operational guardrails for autonomous action. |
-| [**dbt MetricFlow**](https://docs.getdbt.com/docs/build/about-metricflow) | Semantic graph for defining and querying metrics in dbt. Ensures consistent metric computation across consumers. | Same category as AtScale: metric semantics, not domain ontology or agent constraint awareness. |
-| [**ZBrain**](https://zbrain.ai) | Enterprise agentic AI platform with a hybrid approach combining knowledge graphs as semantic filters with vector stores. | Closer conceptually, but it's a proprietary platform play, not an open composable building block. |
-| [**Hiflylabs**](https://hiflylabs.com/blog) | Published a reference architecture describing a semantic layer (OWL/RDF in a knowledge graph), interaction layer (APIs/tools), agent layer, and orchestration layer. | Closest conceptual match, but it's a blog post describing what should exist, not a shipped artifact. |
+| [**Timbr.ai**](https://timbr.ai) | SQL knowledge graph for BI and analytics. | Built for dashboards, not agents. No MCP, no constraints. |
+| [**Palantir Ontology**](https://www.palantir.com/platforms/aip/) | Enterprise ontology inside Palantir's platform. | Proprietary. Requires full Palantir buy-in. |
+| [**AtScale**](https://www.atscale.com) | Metric governance layer for BI tools. | Governs "what does revenue mean," not entity relationships or business rules. |
+| [**dbt MetricFlow**](https://docs.getdbt.com/docs/build/about-metricflow) | Metric definitions in dbt. | Same category as AtScale: metrics, not domain models. |
+| [**ZBrain**](https://zbrain.ai) | Agentic platform with knowledge graphs + vector stores. | Closer in concept, but proprietary platform play. |
+| [**Hiflylabs**](https://hiflylabs.com/blog) | Reference architecture for semantic + agent layers. | A blog post describing what should exist. Not a shipped tool. |
 
-### What nobody has done
+### The gap
 
-The specific intersection Basanos targets: a **protocol-native** (MCP/A2A), **domain-modelled**, **constraint-aware** ontology server designed specifically for **autonomous agent reasoning**, shipped as an **open-source** project.
+No one has built an **open-source, MCP-native domain model** that agents can discover, traverse, and use for constraint-checked decisions. The ideas exist in blogs, in proprietary platforms, and in academic papers. Basanos assembles them into something you can actually run.
 
-The pieces exist in thought leadership, in proprietary platforms, and in academic knowledge graph work. Nobody has assembled them into an open, composable building block that an agent can discover and consume via standard protocols.
-
-The "dbt for agent ontology" doesn't exist yet. That's Basanos.
+The "dbt for agent knowledge" doesn't exist yet. That's Basanos.
 
 ## Philosophy
 
-- **No allegiance.** Platform-agnostic, model-agnostic, vendor-agnostic.
-- **Infrastructure over hype.** Durable semantic layer, not another wrapper.
-- **Domain depth over breadth.** One domain done right beats ten done shallow.
+- **No allegiance.** Works with any platform, any model, any vendor.
+- **Infrastructure over hype.** A durable layer, not another wrapper.
+- **Depth over breadth.** One domain done right beats ten done shallow.
 - **Business logic, not security.** Guardrails for correctness, not threat detection.
 
 ## Contributing
@@ -331,4 +325,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-*"Protocols move data. Semantics make data usable. Without semantics, interoperability becomes structured confusion."*
+*"Protocols move data. Structure makes it usable. Without structure, interoperability is just organized confusion."*
