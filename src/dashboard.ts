@@ -63,7 +63,10 @@ if (existsSync(domainsDir)) {
   }
 }
 
-console.log(`Loaded ${ontologyEngine.getDomains().length} domain(s), ${constraintEngine.getConstraints("itsm").length + constraintEngine.getConstraints("servicenow").length} constraint(s)`);
+const allConstraints = constraintEngine.getAllConstraints();
+const promotedCount = allConstraints.filter(c => c.status === "promoted").length;
+const candidateCount = allConstraints.filter(c => c.status === "candidate").length;
+console.log(`Loaded ${ontologyEngine.getDomains().length} domain(s), ${allConstraints.length} constraint(s) (${promotedCount} promoted, ${candidateCount} candidates)`);
 
 // ── Express API ───────────────────────────────────────────────
 
@@ -103,8 +106,41 @@ app.get("/api/domains/:domain/constraints", (req, res) => {
     appliesTo: c.appliesTo,
     relevantActions: c.relevantActions,
     severity: c.severity,
+    status: c.status,
     description: c.description,
   })));
+});
+
+app.post("/api/constraints/:id/status", express.json(), (req, res) => {
+  const { status } = req.body;
+  const validStatuses = ["candidate", "promoted", "disabled"];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ error: "Invalid status. Use: candidate, promoted, disabled" });
+  }
+  const statusMap: Record<string, import("./constraints/types.js").ConstraintStatus> = {
+    candidate: "candidate" as import("./constraints/types.js").ConstraintStatus,
+    promoted: "promoted" as import("./constraints/types.js").ConstraintStatus,
+    disabled: "disabled" as import("./constraints/types.js").ConstraintStatus,
+  };
+  const ok = constraintEngine.updateConstraintStatus(req.params.id, statusMap[status]);
+  if (!ok) return res.status(404).json({ error: "Constraint not found" });
+  res.json({ success: true, id: req.params.id, status });
+});
+
+app.post("/api/constraints/:id/severity", express.json(), (req, res) => {
+  const { severity } = req.body;
+  const validSeverities = ["block", "warn", "info"];
+  if (!validSeverities.includes(severity)) {
+    return res.status(400).json({ error: "Invalid severity. Use: block, warn, info" });
+  }
+  const severityMap: Record<string, import("./constraints/types.js").ConstraintSeverity> = {
+    block: "block" as import("./constraints/types.js").ConstraintSeverity,
+    warn: "warn" as import("./constraints/types.js").ConstraintSeverity,
+    info: "info" as import("./constraints/types.js").ConstraintSeverity,
+  };
+  const ok = constraintEngine.updateConstraintSeverity(req.params.id, severityMap[severity]);
+  if (!ok) return res.status(404).json({ error: "Constraint not found" });
+  res.json({ success: true, id: req.params.id, severity });
 });
 
 app.get("/api/env-config", (_req, res) => {
@@ -895,25 +931,50 @@ function dashboardHtml(): string {
 
   function renderConstraints(el) {
     if (!constraintData) return;
-    el.innerHTML = \`
-      <div>
-        \${constraintData.map(c => \`
-          <div class="card">
-            <h2>
-              \${c.name}
-              <span class="badge \${{block:'badge-block',warn:'badge-warn',info:'badge-info'}[c.severity]}">\${c.severity.toUpperCase()}</span>
-            </h2>
-            <p>\${c.description}</p>
-            <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
-              <span style="font-size:0.8rem;color:var(--text-secondary);">Applies to:</span>
-              \${c.appliesTo.map(a => '<span class="badge badge-type">' + a + '</span>').join('')}
-              <span style="font-size:0.8rem;color:var(--text-secondary);margin-left:0.5rem;">Actions:</span>
-              \${c.relevantActions.map(a => '<span class="badge badge-info">' + a + '</span>').join('')}
-            </div>
-          </div>
-        \`).join('')}
-      </div>
-    \`;
+    const promoted = constraintData.filter(c => c.status === 'promoted');
+    const candidates = constraintData.filter(c => c.status === 'candidate');
+    const disabled = constraintData.filter(c => c.status === 'disabled');
+
+    function constraintCard(c) {
+      const statusColors = { promoted: 'var(--success)', candidate: 'var(--accent)', disabled: 'var(--text-secondary)' };
+      const statusLabels = { promoted: 'ENFORCED', candidate: 'CANDIDATE', disabled: 'DISABLED' };
+      return '<div class="card" style="' + (c.status === 'disabled' ? 'opacity:0.6;' : '') + '">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">' +
+          '<h2 style="margin:0;">' + c.name +
+            ' <span class="badge ' + {block:'badge-block',warn:'badge-warn',info:'badge-info'}[c.severity] + '">' + c.severity.toUpperCase() + '</span>' +
+            ' <span style="font-size:0.7rem;padding:2px 8px;border-radius:4px;color:white;background:' + (statusColors[c.status] || 'gray') + ';">' + (statusLabels[c.status] || c.status) + '</span>' +
+          '</h2>' +
+          '<div style="display:flex;gap:0.5rem;align-items:center;">' +
+            '<select onchange="updateSeverity(\\'' + c.id + '\\', this.value)" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--card-bg);color:var(--text-primary);font-size:0.8rem;">' +
+              '<option value="block"' + (c.severity === 'block' ? ' selected' : '') + '>Block</option>' +
+              '<option value="warn"' + (c.severity === 'warn' ? ' selected' : '') + '>Warn</option>' +
+              '<option value="info"' + (c.severity === 'info' ? ' selected' : '') + '>Info</option>' +
+            '</select>' +
+            (c.status === 'candidate' ? '<button class="btn-primary" style="font-size:0.8rem;padding:4px 12px;" onclick="updateStatus(\\'' + c.id + '\\', \\'promoted\\')">Promote</button>' : '') +
+            (c.status === 'promoted' ? '<button style="font-size:0.8rem;padding:4px 12px;border:1px solid var(--border);border-radius:4px;background:var(--card-bg);color:var(--text-secondary);cursor:pointer;" onclick="updateStatus(\\'' + c.id + '\\', \\'disabled\\')">Disable</button>' : '') +
+            (c.status === 'disabled' ? '<button style="font-size:0.8rem;padding:4px 12px;border:1px solid var(--border);border-radius:4px;background:var(--card-bg);color:var(--accent);cursor:pointer;" onclick="updateStatus(\\'' + c.id + '\\', \\'promoted\\')">Re-enable</button>' +
+              ' <button style="font-size:0.8rem;padding:4px 12px;border:1px solid var(--border);border-radius:4px;background:var(--card-bg);color:var(--text-secondary);cursor:pointer;" onclick="updateStatus(\\'' + c.id + '\\', \\'candidate\\')">To Candidate</button>' : '') +
+          '</div>' +
+        '</div>' +
+        '<p style="margin-top:0.5rem;">' + c.description + '</p>' +
+        '<div style="margin-top:0.5rem;display:flex;gap:0.5rem;flex-wrap:wrap;">' +
+          '<span style="font-size:0.8rem;color:var(--text-secondary);">Applies to:</span>' +
+          c.appliesTo.map(function(a) { return '<span class="badge badge-type">' + a + '</span>'; }).join('') +
+          '<span style="font-size:0.8rem;color:var(--text-secondary);margin-left:0.5rem;">Actions:</span>' +
+          c.relevantActions.map(function(a) { return '<span class="badge badge-info">' + a + '</span>'; }).join('') +
+        '</div>' +
+      '</div>';
+    }
+
+    el.innerHTML =
+      '<div class="stat-grid">' +
+        '<div class="card stat-card"><div class="stat-value" style="color:var(--success)">' + promoted.length + '</div><div class="stat-label">Enforced</div></div>' +
+        '<div class="card stat-card"><div class="stat-value" style="color:var(--accent)">' + candidates.length + '</div><div class="stat-label">Candidates</div></div>' +
+        '<div class="card stat-card"><div class="stat-value" style="color:var(--text-secondary)">' + disabled.length + '</div><div class="stat-label">Disabled</div></div>' +
+      '</div>' +
+      (promoted.length > 0 ? '<h3 style="margin:1rem 0 0.5rem;color:var(--success);">Enforced (' + promoted.length + ')</h3>' + promoted.map(constraintCard).join('') : '') +
+      (candidates.length > 0 ? '<h3 style="margin:1rem 0 0.5rem;color:var(--accent);">Candidates (' + candidates.length + ')</h3>' + candidates.map(constraintCard).join('') : '') +
+      (disabled.length > 0 ? '<details style="margin-top:1rem;"><summary style="cursor:pointer;color:var(--text-secondary);font-weight:600;">Disabled (' + disabled.length + ')</summary>' + disabled.map(constraintCard).join('') + '</details>' : '');
   }
 
   function renderAgentCard(el) {
@@ -1079,6 +1140,34 @@ function dashboardHtml(): string {
       clientId: document.getElementById('snow-client-id').value || undefined,
       clientSecret: document.getElementById('snow-client-secret').value || undefined,
     };
+  }
+
+  async function updateStatus(constraintId, newStatus) {
+    try {
+      const res = await fetch('/api/constraints/' + encodeURIComponent(constraintId) + '/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        await loadDomain(currentDomain);
+        showTab('constraints');
+      }
+    } catch (err) { console.error('Failed to update status:', err); }
+  }
+
+  async function updateSeverity(constraintId, newSeverity) {
+    try {
+      const res = await fetch('/api/constraints/' + encodeURIComponent(constraintId) + '/severity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ severity: newSeverity }),
+      });
+      if (res.ok) {
+        await loadDomain(currentDomain);
+        showTab('constraints');
+      }
+    } catch (err) { console.error('Failed to update severity:', err); }
   }
 
   async function testConnection() {

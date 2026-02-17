@@ -46,7 +46,7 @@ async function discoverIncidentConstraints(
 
     if (recentChanges.length > 0) {
       constraints.push({
-        id: "discovered:change_freeze",
+        id: `${domainName}:discovered:change_freeze`,
         name: "Active Change Freeze (Discovered)",
         domain: domainName,
         appliesTo: ["incident"],
@@ -83,7 +83,7 @@ async function discoverIncidentConstraints(
     if (p1Incidents.length > 0) {
       const reassignRate = reassigned.length / p1Incidents.length;
       constraints.push({
-        id: "discovered:p1_reassignment",
+        id: `${domainName}:discovered:p1_reassignment`,
         name: "P1 Reassignment Caution (Discovered)",
         domain: domainName,
         appliesTo: ["incident"],
@@ -131,7 +131,7 @@ async function discoverIncidentConstraints(
     if (overloaded.length > 0) {
       const maxGroup = overloaded.reduce((a, b) => (a[1] > b[1] ? a : b));
       constraints.push({
-        id: "discovered:group_capacity",
+        id: `${domainName}:discovered:group_capacity`,
         name: "Group Capacity Warning (Discovered)",
         domain: domainName,
         appliesTo: ["incident", "problem", "change_request"],
@@ -164,7 +164,7 @@ async function discoverIncidentConstraints(
 
     if (slaRecords.length > 0) {
       constraints.push({
-        id: "discovered:sla_breach",
+        id: `${domainName}:discovered:sla_breach`,
         name: "SLA Breach Review (Discovered)",
         domain: domainName,
         appliesTo: ["incident"],
@@ -207,6 +207,7 @@ export async function discoverConstraints(
       appliesTo: c.appliesTo,
       relevantActions: c.relevantActions,
       severity: c.severity,
+      status: "candidate",
       description: c.description + ` [Evidence: ${c.evidence}]`,
       conditions: c.conditions,
       violationMessage: c.violationMessage,

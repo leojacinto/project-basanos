@@ -21,6 +21,18 @@ export enum ConstraintSeverity {
 }
 
 /**
+ * Lifecycle status for a constraint.
+ */
+export enum ConstraintStatus {
+  /** Discovered or hand-crafted but not yet enforced */
+  CANDIDATE = "candidate",
+  /** Reviewed and actively enforced */
+  PROMOTED = "promoted",
+  /** Explicitly turned off (was promoted, now paused) */
+  DISABLED = "disabled",
+}
+
+/**
  * The result of evaluating a constraint against a context.
  */
 export interface ConstraintResult {
@@ -70,6 +82,8 @@ export interface ConstraintDefinition {
   relevantActions: string[];
   /** Severity when violated */
   severity: ConstraintSeverity;
+  /** Lifecycle status: candidate, promoted, or disabled */
+  status: ConstraintStatus;
   /** Human-readable description for agent reasoning */
   description: string;
   /** Evaluation function — takes context, returns result */

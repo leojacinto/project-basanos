@@ -1,6 +1,6 @@
 {
   "source": "http://localhost:8090",
-  "importedAt": "2026-02-17T04:00:35.013Z",
+  "importedAt": "2026-02-17T04:26:23.850Z",
   "pipeline": "basanos cli import",
   "tablesImported": 6,
   "fieldsImported": 32,
@@ -13,23 +13,23 @@
     "problem",
     "sys_user_group"
   ],
-  "discoveredAt": "2026-02-17T04:00:35.020Z",
+  "discoveredAt": "2026-02-17T04:26:23.859Z",
   "constraintsDiscovered": 3,
   "discoveryEvidence": [
     {
-      "id": "discovered:change_freeze",
+      "id": "servicenow-demo:discovered:change_freeze",
       "name": "Active Change Freeze (Discovered)",
       "severity": "block",
       "evidence": "1 change requests found in recent history"
     },
     {
-      "id": "discovered:p1_reassignment",
+      "id": "servicenow-demo:discovered:p1_reassignment",
       "name": "P1 Reassignment Caution (Discovered)",
       "severity": "warn",
       "evidence": "3 active P1s, 2 reassigned (67% rate)"
     },
     {
-      "id": "discovered:sla_breach",
+      "id": "servicenow-demo:discovered:sla_breach",
       "name": "SLA Breach Review (Discovered)",
       "severity": "warn",
       "evidence": "2 breached SLA records found"

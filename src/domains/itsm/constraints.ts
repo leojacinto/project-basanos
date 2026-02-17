@@ -10,7 +10,7 @@ import type {
   ConstraintDefinition,
   ConstraintResult,
 } from "../../constraints/types.js";
-import { ConstraintSeverity } from "../../constraints/types.js";
+import { ConstraintSeverity, ConstraintStatus } from "../../constraints/types.js";
 
 /**
  * Don't auto-resolve an incident if there's an active change freeze
@@ -23,6 +23,7 @@ export const changeFreezeConstraint: ConstraintDefinition = {
   appliesTo: ["incident"],
   relevantActions: ["resolve", "close", "auto_resolve"],
   severity: ConstraintSeverity.BLOCK,
+  status: ConstraintStatus.PROMOTED,
   description:
     "Prevents incident resolution actions during an active change freeze. " +
     "When a change freeze is in effect, incident resolution may need manual " +
@@ -54,6 +55,7 @@ export const p1ReassignmentConstraint: ConstraintDefinition = {
   appliesTo: ["incident"],
   relevantActions: ["reassign"],
   severity: ConstraintSeverity.WARN,
+  status: ConstraintStatus.PROMOTED,
   description:
     "P1 incidents typically have active war rooms, executive visibility, " +
     "and established communication channels. Reassignment disrupts all of " +
@@ -85,6 +87,7 @@ export const groupCapacityConstraint: ConstraintDefinition = {
   appliesTo: ["incident", "problem", "change_request"],
   relevantActions: ["assign", "reassign"],
   severity: ConstraintSeverity.WARN,
+  status: ConstraintStatus.PROMOTED,
   description:
     "Checks whether the target assignment group has available capacity. " +
     "Overloaded groups lead to SLA breaches and burnout.",
@@ -119,6 +122,7 @@ export const slaBreachReviewConstraint: ConstraintDefinition = {
   appliesTo: ["incident"],
   relevantActions: ["close"],
   severity: ConstraintSeverity.WARN,
+  status: ConstraintStatus.PROMOTED,
   description:
     "If an incident breached its SLA and the governing SLA contract has a " +
     "penalty clause, the closure should be reviewed by service management " +

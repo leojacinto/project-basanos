@@ -13,7 +13,7 @@ import { load as yamlLoad } from "js-yaml";
 import type { DomainSchema, EntityTypeSchema, RelationshipSchema, PropertySchema } from "./ontology/types.js";
 import { Cardinality } from "./ontology/types.js";
 import type { ConstraintDefinition, ConstraintContext, ConstraintResult } from "./constraints/types.js";
-import { ConstraintSeverity } from "./constraints/types.js";
+import { ConstraintSeverity, ConstraintStatus } from "./constraints/types.js";
 import type { DeclarativeConstraint } from "./constraints/rule-evaluator.js";
 import { evaluateAllConditions } from "./constraints/rule-evaluator.js";
 
@@ -30,6 +30,12 @@ const SEVERITY_MAP: Record<string, ConstraintSeverity> = {
   block: ConstraintSeverity.BLOCK,
   warn: ConstraintSeverity.WARN,
   info: ConstraintSeverity.INFO,
+};
+
+const STATUS_MAP: Record<string, ConstraintStatus> = {
+  candidate: ConstraintStatus.CANDIDATE,
+  promoted: ConstraintStatus.PROMOTED,
+  disabled: ConstraintStatus.DISABLED,
 };
 
 // ── Ontology Loader ───────────────────────────────────────────
@@ -107,6 +113,8 @@ export function loadConstraintsFromYaml(
   return raw.constraints.map((dc): ConstraintDefinition => {
     const severity = SEVERITY_MAP[dc.severity] || ConstraintSeverity.WARN;
 
+    const status = STATUS_MAP[dc.status || "promoted"] || ConstraintStatus.PROMOTED;
+
     return {
       id: dc.id,
       name: dc.name,
@@ -114,6 +122,7 @@ export function loadConstraintsFromYaml(
       appliesTo: dc.appliesTo,
       relevantActions: dc.relevantActions,
       severity,
+      status,
       description: dc.description.trim(),
       evaluate: async (context: ConstraintContext): Promise<ConstraintResult> => {
         const metadata = context.metadata as Record<string, unknown>;

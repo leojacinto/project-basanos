@@ -19,6 +19,7 @@ constraints:
     appliesTo: [incident]
     relevantActions: [resolve, close, auto_resolve]
     severity: block
+    status: promoted
     description: >
       Prevents incident resolution actions during an active change freeze.
       When a change freeze is in effect, incident resolution may require
@@ -38,6 +39,7 @@ constraints:
     appliesTo: [incident]
     relevantActions: [reassign]
     severity: warn
+    status: promoted
     description: >
       P1 incidents typically have active war rooms, executive visibility,
       and established communication channels. Reassignment disrupts all of
@@ -57,6 +59,7 @@ constraints:
     appliesTo: [incident, problem, change_request]
     relevantActions: [assign, reassign]
     severity: warn
+    status: promoted
     description: >
       Checks whether the target assignment group has available capacity.
       Overloaded groups lead to SLA breaches and burnout.
@@ -78,6 +81,7 @@ constraints:
     appliesTo: [incident]
     relevantActions: [close]
     severity: warn
+    status: promoted
     description: >
       If an incident breached its SLA and the governing SLA contract has a
       penalty clause, the closure should be reviewed by service management

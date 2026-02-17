@@ -11,7 +11,7 @@ import type {
   ConstraintDefinition,
   ConstraintResult,
 } from "./types.js";
-import { ConstraintSeverity } from "./types.js";
+import { ConstraintSeverity, ConstraintStatus } from "./types.js";
 
 export interface ConstraintVerdict {
   /** Can the action proceed? */
@@ -63,8 +63,9 @@ export class ConstraintEngine {
   async evaluate(context: ConstraintContext): Promise<ConstraintVerdict> {
     const applicable = Array.from(this.constraints.values()).filter(
       (c) =>
-        c.relevantActions.includes(context.intendedAction) ||
-        c.relevantActions.includes("*")
+        c.status === ConstraintStatus.PROMOTED &&
+        (c.relevantActions.includes(context.intendedAction) ||
+        c.relevantActions.includes("*"))
     );
 
     if (applicable.length === 0) {
@@ -177,7 +178,34 @@ export class ConstraintEngine {
   }
 
   /**
-   * Describe all constraints for a domain — for agent awareness.
+   * Get all registered constraints across all domains.
+   */
+  getAllConstraints(): ConstraintDefinition[] {
+    return Array.from(this.constraints.values());
+  }
+
+  /**
+   * Update the status of a constraint (promote, demote, disable).
+   */
+  updateConstraintStatus(constraintId: string, status: ConstraintStatus): boolean {
+    const constraint = this.constraints.get(constraintId);
+    if (!constraint) return false;
+    constraint.status = status;
+    return true;
+  }
+
+  /**
+   * Update the severity of a constraint.
+   */
+  updateConstraintSeverity(constraintId: string, severity: ConstraintSeverity): boolean {
+    const constraint = this.constraints.get(constraintId);
+    if (!constraint) return false;
+    constraint.severity = severity;
+    return true;
+  }
+
+  /**
+   * Describe all constraints for a domain - for agent awareness.
    */
   describeConstraints(domain: string): string {
     const constraints = this.getConstraints(domain);

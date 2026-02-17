@@ -29,6 +29,7 @@ export interface DeclarativeConstraint {
   appliesTo: string[];
   relevantActions: string[];
   severity: "block" | "warn" | "info";
+  status?: "candidate" | "promoted" | "disabled";
   description: string;
   conditions: RuleCondition[];
   violationMessage: string;

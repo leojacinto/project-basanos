@@ -249,12 +249,16 @@ src/
     ├── yaml-loader.ts       # 23-assertion YAML loader tests
     └── scenario-autonomous.ts  # 3am incident demo (with vs without Basanos)
 domains/
-├── itsm/                    # Hand-crafted ITSM ontology (YAML)
+├── itsm/                    # Hand-crafted ITSM ontology (YAML, promoted)
 │   ├── ontology.yaml
 │   └── constraints.yaml
-└── servicenow-live/         # Auto-imported from ServiceNow (generated)
+├── servicenow-demo/         # Auto-imported from mock server (committed)
+│   ├── ontology.yaml
+│   ├── discovered-constraints.yaml  # status: candidate
+│   └── provenance.json
+└── servicenow-live/         # Auto-imported from real instance (gitignored)
     ├── ontology.yaml
-    ├── discovered-constraints.yaml
+    ├── discovered-constraints.yaml  # status: candidate
     └── provenance.json
 docs/
 └── DIFFERENTIATORS.md       # Critical analysis: why Basanos vs Claude Desktop
@@ -339,12 +343,44 @@ No one has built an **open-source, MCP-native domain model** that agents can dis
 
 The "dbt for agent knowledge" doesn't exist yet. That's Basanos.
 
-## Philosophy
+## Design Principles
+
+### Core philosophy
 
 - **No allegiance.** Works with any platform, any model, any vendor.
 - **Infrastructure over hype.** A durable layer, not another wrapper.
 - **Depth over breadth.** One domain done right beats ten done shallow.
 - **Business logic, not security.** Guardrails for correctness, not threat detection.
+
+### Constraint lifecycle
+
+Discovered constraints are not automatically enforced. They follow a deliberate promotion workflow:
+
+```
+candidate  --->  promoted  --->  disabled
+   ^                |               |
+   |                v               |
+   +----------  demoted  <----------+
+```
+
+- **Candidate**: discovered from data or hand-crafted but not yet reviewed. Visible in the dashboard but not enforced by agents.
+- **Promoted**: reviewed by a human and actively enforced. Agents calling `basanos_check_constraints` will receive block/warn verdicts from these.
+- **Disabled**: explicitly paused. Was promoted, now turned off (e.g., during a maintenance window).
+
+### Don't build a rule engine
+
+Most systems of record already have their own rule engines (ServiceNow Business Rules, Salesforce Flows, Jira Automation). Basanos discovers patterns and surfaces them as guardrails for agents. It does not replace downstream rule engines.
+
+The right workflow is: Basanos discovers a pattern, a human promotes it as an agent guardrail, and if deeper enforcement is needed, the rule gets implemented in the system of record itself. Basanos is the touchstone, not the courthouse.
+
+### The 80/20 controls
+
+The dashboard exposes three controls per constraint:
+1. **Status** (candidate / promoted / disabled)
+2. **Severity** (block / warn / info)
+3. That's it.
+
+Editing conditions, operators, entity scopes, and other deep rule logic belongs in YAML files, reviewed by architects in version control. The dashboard is for operational decisions, not rule authoring.
 
 ## Contributing
 
