@@ -6,6 +6,23 @@
 
 This project brings that idea to AI agents.
 
+## Current Status
+
+Basanos is a working prototype. Here is what exists today vs what is planned:
+
+| Area | Status | Notes |
+|------|--------|-------|
+| **ServiceNow connector** | Implemented | REST API, schema import, entity sync, MCP proxy gateway |
+| **Rules engine** | Implemented | YAML-driven, evaluate/block/allow with audit trail |
+| **Rule discovery** | Implemented | Heuristic pattern analysis (change freezes, SLA breaches, P1 reopen rates). Not ML - these are coded algorithms that scan your data for known patterns. |
+| **Human-in-the-loop lifecycle** | Implemented | Candidate / promoted / disabled with dashboard controls |
+| **Jira integration** | Demo only | Mock Jira data used to demonstrate cross-system enforcement. No production Jira connector yet. |
+| **Salesforce integration** | Planned | Architecture supports it; no connector implemented. |
+| **Agent client embedding** | Planned | MCP server runs and can be called by any MCP client, but no pre-built Claude/GPT integrations ship with the repo. |
+| **A2A protocol** | Planned | Agent card types defined; no runtime A2A server yet. |
+
+The README describes the design direction alongside what is implemented. Sections below call out where something is planned vs shipped.
+
 ## The Problem
 
 AI agents can call APIs across ServiceNow, Jira, Salesforce, and more. But no single system knows what the others are doing. ServiceNow business rules cannot see Jira deploys. Jira automation cannot see ServiceNow change freezes. When agents operate across these systems, there is no shared enforcement layer.
@@ -17,10 +34,12 @@ System prompts say "please don't resolve incidents during a change freeze." Basa
 Basanos sits between your agents and enterprise systems. It does three things:
 
 ### 1. Discovers rules from your data
-Connects to live systems (ServiceNow, Jira, etc.), analyzes patterns (P1 reopen rates, change freezes, SLA breaches), and surfaces rule candidates. These are guardrails you have not built yet, discovered from your actual data.
+Connects to a live system (currently ServiceNow), runs heuristic pattern analysis (P1 reopen rates, change freezes, SLA breaches, CI failure patterns), and surfaces rule candidates. This is not ML or AI inference - it is coded algorithms that scan your data for known anti-patterns. The value is surfacing guardrails you have not built yet, from your actual data.
 
 ### 2. Enforces rules across systems
 An agent calls "resolve incident" through Basanos. Basanos checks ServiceNow for change freezes **and** Jira for active deploys on the same service. No single system sees both risks. Basanos evaluates rules across system boundaries before allowing or blocking the action.
+
+*Today: ServiceNow enforcement works against live instances. Jira enforcement is demonstrated with mock data. The architecture supports adding connectors for any REST-based system.*
 
 ### 3. Keeps humans in the loop
 Discovered rules start as candidates. A human reviews and promotes them before they enforce. No rule fires without human review. Demote or disable at any time.
@@ -46,9 +65,9 @@ flowchart TD
     end
 
     subgraph Systems["Enterprise Systems"]
-        SN[ServiceNow]
-        SF[Salesforce]
-        JR[Jira]
+        SN[ServiceNow<br/>Implemented]
+        JR[Jira<br/>Demo/Mock]
+        SF[Salesforce<br/>Planned]
     end
 
     Agents -->|MCP / A2A| Basanos
@@ -57,7 +76,7 @@ flowchart TD
 
 ## How It Works
 
-Basanos connects to live systems, imports their structure, and discovers rules automatically. Here is the ServiceNow pipeline:
+Basanos connects to a live system, imports its structure, and discovers rules. Today this pipeline is implemented for ServiceNow:
 
 ```mermaid
 flowchart LR
@@ -176,7 +195,7 @@ Walks through the full Basanos narrative against a live ServiceNow instance:
 
 ### Multi-system Demo
 
-The scenario no single system can handle alone. Basanos enriches context from **both** ServiceNow and Jira, then evaluates constraints that span both systems:
+Demonstrates the cross-system enforcement concept using live ServiceNow data and **mock Jira data** (no Jira credentials needed). Basanos enriches context from both sources, then evaluates rules that span both systems:
 
 - **INC0025428** - ServiceNow has a change freeze, Jira has no deploy. **BLOCKED.** Jira-only tooling would have let this through.
 - **INC0025729** - ServiceNow has no change freeze, but Jira has an active deploy. **BLOCKED.** ServiceNow business rules would have let this through.
@@ -372,7 +391,7 @@ Basanos adds value at a different layer:
 - **Cross-system rules** - "Don't resolve this incident if there's an open deploy in Jira for the same service." ServiceNow rules cannot see Jira.
 - **Discovery** - Basanos finds rule patterns from your data that you have not built as business rules yet.
 - **Protocol gateway** - One enforcement point for all MCP traffic, regardless of which agent or system is calling.
-- **Vendor-neutral** - Same rules engine whether the target is ServiceNow, Salesforce, or a custom API.
+- **Vendor-neutral** - Same rules engine regardless of target system. Today: ServiceNow. Planned: Jira, Salesforce, custom REST APIs.
 
 For a single-system, single-vendor scenario, business rules are simpler. Basanos is for the layer above - where multiple systems, multiple agents, and multiple protocols intersect.
 
@@ -415,7 +434,7 @@ The problem is well-identified. Anthropic calls it "context engineering" ([Build
 
 ### The gap
 
-No one has built an **open-source, MCP-native rules engine** that discovers patterns from live systems and enforces them across multiple platforms. The ideas exist in blogs, in proprietary platforms, and in academic papers. Basanos assembles them into something you can actually run.
+No one has shipped an **open-source, MCP-native rules engine** for this problem. Basanos is a working prototype that demonstrates the pattern with one production connector (ServiceNow) and a mock cross-system demo (Jira). The architecture is designed to extend to additional systems.
 
 ## Design Principles
 
