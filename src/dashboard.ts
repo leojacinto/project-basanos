@@ -625,15 +625,30 @@ function dashboardHtml(): string {
   let currentDomain = '';
 
   async function init() {
-    const listRes = await fetch('/api/domains');
-    allDomains = await listRes.json();
-    const select = document.getElementById('domain-select');
-    select.innerHTML = allDomains.map(d =>
-      \`<option value="\${d.name}">\${d.label} (\${d.entityTypeCount} types)</option>\`
-    ).join('');
-    if (allDomains.length > 0) {
-      currentDomain = allDomains[0].name;
-      await loadDomain(currentDomain);
+    try {
+      const listRes = await fetch('/api/domains');
+      if (!listRes.ok) throw new Error('API returned ' + listRes.status);
+      allDomains = await listRes.json();
+      const select = document.getElementById('domain-select');
+      select.innerHTML = allDomains.map(d =>
+        \`<option value="\${d.name}">\${d.label} (\${d.entityTypeCount} types)</option>\`
+      ).join('');
+      if (allDomains.length > 0) {
+        currentDomain = allDomains[0].name;
+        await loadDomain(currentDomain);
+      } else {
+        document.getElementById('content').innerHTML =
+          '<div style="text-align:center;padding:3rem;color:var(--text-secondary);">' +
+          '<h2>No domains loaded</h2>' +
+          '<p>Run the pipeline first: <code>npm run demo</code> or <code>npm run cli -- full</code></p>' +
+          '<p>Then refresh this page.</p></div>';
+      }
+    } catch (err) {
+      document.getElementById('content').innerHTML =
+        '<div style="text-align:center;padding:3rem;color:#c0392b;">' +
+        '<h2>Failed to load dashboard</h2>' +
+        '<p>' + err + '</p>' +
+        '<p style="color:var(--text-secondary);">Is the Basanos dashboard server running? Try: <code>npm run demo</code></p></div>';
     }
   }
 
