@@ -1515,8 +1515,8 @@ function dashboardHtml(): string {
     var msg = document.createElement('div');
     var isUser = role === 'user';
     var isSystem = role === 'system';
-    var bgColor = isUser ? 'var(--accent)' : isSystem ? 'var(--card-bg)' : '#1a1a2e';
-    var textColor = isUser ? '#fff' : 'var(--text)';
+    var bgColor = isUser ? 'var(--accent)' : 'var(--card-bg)';
+    var textColor = isUser ? '#fff' : 'var(--text-primary, var(--text))';
     var align = isUser ? 'flex-end' : 'flex-start';
     var label = isUser ? 'You (Agent)' : isSystem ? 'System' : 'Basanos';
 
@@ -1586,7 +1586,7 @@ function dashboardHtml(): string {
       var enrichedStep = steps.find(function(s) { return s.step === 'enriched'; });
       if (enrichedStep && enrichedStep.metadata) {
         var m = enrichedStep.metadata;
-        var metaHtml = '<div style="background:rgba(255,255,255,0.05);padding:0.5rem;border-radius:0.3rem;margin-bottom:0.5rem;">' +
+        var metaHtml = '<div style="background:var(--border);padding:0.5rem;border-radius:0.3rem;margin-bottom:0.5rem;">' +
           '<strong>Context gathered:</strong><br>' +
           '<span style="color:var(--text-secondary);">Incident:</span> ' + (m.incident_number || incNumber) + ' - ' + (m.incident_description || '') + '<br>' +
           '<span style="color:var(--text-secondary);">Priority:</span> <strong>' + (m.priority || '?') + '</strong><br>' +
@@ -1610,7 +1610,7 @@ function dashboardHtml(): string {
         var resultsHtml = '';
         (verdict.results || []).forEach(function(r) {
           var icon = r.satisfied ? '<span style="color:var(--success);">PASS</span>' : (r.severity === 0 ? '<span style="color:#e74c3c;">BLOCK</span>' : '<span style="color:#e67e22;">WARN</span>');
-          resultsHtml += '<div style="padding:0.3rem 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+          resultsHtml += '<div style="padding:0.3rem 0;border-bottom:1px solid var(--border);">' +
             icon + ' <strong>' + r.constraintId + '</strong><br>' +
             '<span style="font-size:0.75rem;color:var(--text-secondary);">' + r.explanation + '</span></div>';
         });
@@ -1618,7 +1618,7 @@ function dashboardHtml(): string {
         var verdictColor = verdict.allowed ? 'var(--success)' : '#e74c3c';
         var verdictIcon = verdict.allowed ? 'ALLOWED' : 'BLOCKED';
         demoAddMessage('basanos',
-          '<div style="background:rgba(255,255,255,0.05);padding:0.5rem;border-radius:0.3rem;">' +
+          '<div style="background:var(--border);padding:0.5rem;border-radius:0.3rem;">' +
           '<strong>Constraint Results:</strong>' + resultsHtml +
           '<div style="margin-top:0.5rem;padding:0.5rem;background:' + verdictColor + '22;border:1px solid ' + verdictColor + ';border-radius:0.3rem;text-align:center;">' +
           '<strong style="color:' + verdictColor + ';font-size:1.1rem;">' + verdictIcon + '</strong><br>' +
