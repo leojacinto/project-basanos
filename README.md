@@ -42,44 +42,152 @@ When another agent discovers Basanos via A2A, it sees typed capabilities with pr
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    subgraph Agents["AI Agents"]
+        A1[Claude]
+        A2[GPT]
+        A3[ServiceNow Agent]
+        A4[Custom Agents]
+    end
+
+    subgraph Basanos["project-basanos"]
+        OE[Ontology Engine<br/>Typed entity graph + traversal]
+        CE[Constraint Engine<br/>Business logic guardrails + audit]
+        AC[Agent Card Registry<br/>A2A capability discovery]
+        DS[(Domain Schemas<br/>YAML ontologies + constraints)]
+        OE --- DS
+        CE --- DS
+    end
+
+    subgraph Systems["Enterprise Systems"]
+        SN[ServiceNow]
+        SF[Salesforce]
+        JR[Jira]
+    end
+
+    Agents -->|MCP / A2A| Basanos
+    Basanos -->|REST Connectors| Systems
 ```
-┌─────────────────────────────────────────────────┐
-│                  AI Agents                       │
-│         (Claude, GPT, DeepSeek, etc.)            │
-└──────────────────┬──────────────────────────────┘
-                   │ MCP / A2A
-┌──────────────────▼──────────────────────────────┐
-│              project-basanos                     │
-│  ┌───────────┐ ┌────────────┐ ┌──────────────┐  │
-│  │ Ontology  │ │ Constraint │ │ Agent Card   │  │
-│  │ Engine    │ │ Engine     │ │ Registry     │  │
-│  └─────┬─────┘ └─────┬──────┘ └──────┬───────┘  │
-│        └──────────────┼───────────────┘          │
-│                       │                          │
-│              ┌────────▼────────┐                 │
-│              │ Domain Schemas  │                 │
-│              │ (ITSM, CMDB..) │                 │
-│              └─────────────────┘                 │
-└──────────────────────────────────────────────────┘
-                   │
-┌──────────────────▼──────────────────────────────┐
-│           Enterprise Systems                     │
-│    (ServiceNow, Salesforce, Jira, etc.)          │
-└──────────────────────────────────────────────────┘
+
+## How It Works: ServiceNow Integration Pipeline
+
+Basanos connects to a live ServiceNow instance to import schemas, sync entities, and discover constraints automatically.
+
+```mermaid
+flowchart LR
+    subgraph Operator
+        U[Operator<br/>Dashboard or CLI]
+    end
+
+    subgraph Pipeline["Basanos Pipeline"]
+        C[Connect<br/>Verify credentials]
+        I[Import Schemas<br/>Read sys_dictionary]
+        S[Sync Entities<br/>Query live tables]
+        D[Discover Constraints<br/>Analyze data patterns]
+    end
+
+    subgraph ServiceNow["ServiceNow Instance"]
+        SD[sys_dictionary<br/>Field definitions]
+        SC[sys_choice<br/>Dropdown values]
+        TA[Table API<br/>Live records]
+    end
+
+    subgraph Artifacts["Generated Artifacts"]
+        OY[ontology.yaml<br/>Typed entity graph]
+        CY[discovered-constraints.yaml<br/>Business rules from data]
+        PJ[provenance.json<br/>Proof of origin]
+    end
+
+    U --> C
+    C --> I
+    I -->|For each table| SD
+    I -->|For each enum field| SC
+    I --> S
+    S -->|Query ITSM tables| TA
+    S --> D
+    D -->|Analyze patterns| TA
+    D --> OY
+    D --> CY
+    D --> PJ
 ```
+
+### What each step does
+
+```mermaid
+sequenceDiagram
+    participant Operator
+    participant Basanos
+    participant ServiceNow
+
+    Operator->>Basanos: Credentials (URL, user, pass)
+
+    rect rgb(40, 40, 60)
+    Note over Basanos,ServiceNow: Step 1: Connect
+    Basanos->>ServiceNow: GET /api/now/table/incident?limit=1
+    ServiceNow-->>Basanos: 200 OK
+    Basanos-->>Operator: Connected
+    end
+
+    rect rgb(40, 60, 40)
+    Note over Basanos,ServiceNow: Step 2: Import Schemas
+    loop For each table (incident, cmdb_ci, cmdb_ci_service, ...)
+        Basanos->>ServiceNow: GET /api/now/table/sys_dictionary?name={table}
+        ServiceNow-->>Basanos: Field definitions (type, mandatory, references)
+        Basanos->>ServiceNow: GET /api/now/table/sys_choice?name={table}
+        ServiceNow-->>Basanos: Enum values (priority, state, category)
+    end
+    Note over Basanos: Map types, detect relationships, write ontology.yaml
+    end
+
+    rect rgb(60, 40, 40)
+    Note over Basanos,ServiceNow: Step 3: Sync Entities
+    loop For each ITSM table
+        Basanos->>ServiceNow: GET /api/now/table/{table}?limit=100
+        ServiceNow-->>Basanos: Live records
+    end
+    Note over Basanos: Convert to typed entities, wire cross-references
+    end
+
+    rect rgb(60, 60, 40)
+    Note over Basanos,ServiceNow: Step 4: Discover Constraints
+    Basanos->>ServiceNow: Query change_request, task_sla
+    ServiceNow-->>Basanos: Change freezes, SLA breaches
+    Note over Basanos: Analyze P1 patterns, group workload, SLA breaches
+    Basanos-->>Operator: 3 constraints discovered with evidence
+    end
+```
+
+### What agents see after import
+
+```mermaid
+sequenceDiagram
+    participant Agent as AI Agent
+    participant Basanos
+
+    Agent->>Basanos: What is INC0099001?
+    Basanos-->>Agent: P1 incident on mail-server-prod-01<br/>affects Corporate Email Service<br/>assigned to Infrastructure Operations
+
+    Agent->>Basanos: Can I resolve this incident?
+    Basanos-->>Agent: BLOCKED: Active change freeze<br/>Evidence: 1 scheduled change request<br/>Source: your-instance.service-now.com<br/>Imported: 2026-02-17T00:28:57Z
+
+    Agent->>Basanos: What else does this CI affect?
+    Basanos-->>Agent: mail-server-prod-01 supports<br/>3 business services, 2 with SLA penalties
+```
+
+Every answer traces back to a real API call, a real record, a real timestamp. The provenance is baked in.
 
 ## Quick Start
 
 ```bash
-# Clone and build
 git clone https://github.com/leojacinto/project-basanos.git
 cd project-basanos
 npm install && npm run build
 
-# Run the MCP server (serves hand-crafted ITSM ontology)
+# Run the MCP server (hand-crafted ITSM ontology)
 npm start
 
-# Explore the ontology visually (multi-domain, light/dark mode)
+# Explore visually (multi-domain, light/dark mode, auto port scan)
 npm run dashboard
 
 # Inspect with MCP Inspector
@@ -89,26 +197,23 @@ npm run inspect
 ### Connect to a live ServiceNow instance
 
 ```bash
-# Configure credentials
-cp .env.example .env
-# Edit .env with your ServiceNow instance URL, username, password
+cp .env.example .env          # Configure credentials
+npm run cli -- full            # Full pipeline: connect > import > sync > discover
 
-# Run the full pipeline: connect, import schemas, sync entities, discover constraints
-npm run cli -- full
-
-# Or run steps individually
-npm run cli -- connect     # Test connection
-npm run cli -- import      # Import table schemas to YAML
-npm run cli -- sync        # Sync live entities into Basanos
-npm run cli -- discover    # Discover constraints from data patterns
+# Or step by step
+npm run cli -- connect         # Test connection
+npm run cli -- import          # Import table schemas to YAML
+npm run cli -- sync            # Sync live entities
+npm run cli -- discover        # Discover constraints from data patterns
 ```
 
-### Test with the mock ServiceNow server
+Or use the **Connect tab** in the dashboard to run the pipeline from the browser.
+
+### Test with the mock server
 
 ```bash
-npm run mock-snow          # Starts mock at http://localhost:8090
-# In another terminal, with .env pointing to localhost:8090:
-npm run cli -- full
+npm run mock-snow              # Starts mock at http://localhost:8090
+npm run cli -- full            # In another terminal
 ```
 
 ## Project Structure
@@ -149,20 +254,28 @@ domains/
 │   └── constraints.yaml
 └── servicenow-live/         # Auto-imported from ServiceNow (generated)
     ├── ontology.yaml
-    └── discovered-constraints.yaml
+    ├── discovered-constraints.yaml
+    └── provenance.json
 docs/
 └── DIFFERENTIATORS.md       # Critical analysis: why Basanos vs Claude Desktop
 ```
 
 ## Proof Domain: ITSM
 
-The initial implementation models IT Service Management, a domain with rich entity relationships, well-defined business constraints, and clear measurability:
+```mermaid
+erDiagram
+    Incident ||--o{ Business_Service : "affects"
+    Incident ||--o{ Configuration_Item : "on CI"
+    Incident ||--o{ Assignment_Group : "assigned to"
+    Incident ||--o{ SLA_Contract : "governed by"
+    Change_Request ||--o{ Configuration_Item : "impacts"
+    Change_Request ||--o{ Assignment_Group : "owned by"
+    Problem ||--o{ Incident : "causes"
+    Business_Service ||--o{ SLA_Contract : "bound by"
+    Business_Service ||--o{ Configuration_Item : "supported by"
+```
 
-- **Incidents** → affect **Business Services** → governed by **SLA Contracts**
-- **Change Requests** → impact **Configuration Items** → owned by **Assignment Groups**
-- **Problems** → cause **Incidents** → traced to **Known Errors**
-
-An agent with Basanos makes measurably better decisions: fewer incorrect escalations, proper change freeze awareness, accurate impact assessment.
+ITSM was chosen as the first domain because it has rich entity relationships, well-defined business constraints, and clear measurability. An agent with Basanos makes measurably better decisions: fewer incorrect escalations, proper change freeze awareness, accurate impact assessment.
 
 ## Protocols
 
