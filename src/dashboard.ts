@@ -357,6 +357,100 @@ app.post("/api/mcp-proxy/refresh-token", async (_req, res) => {
   }
 });
 
+// ── Demo API (MCP Client Simulator) ──────────────────────────
+
+app.get("/api/demo/incidents", async (_req, res) => {
+  if (!mcpClient) {
+    return res.status(400).json({ error: "MCP proxy not connected" });
+  }
+  try {
+    const incidents = await mcpClient.queryIncidents("active=true^cmdb_ciISNOTEMPTY^ORDERBYDESCpriority");
+    res.json({ incidents });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post("/api/demo/execute", express.json(), async (req, res) => {
+  if (!mcpClient) {
+    return res.status(400).json({ error: "MCP proxy not connected" });
+  }
+
+  const { action, incidentNumber, args } = req.body;
+  const trace: Record<string, unknown> = { action, incidentNumber, steps: [] };
+  const steps = trace.steps as Array<Record<string, unknown>>;
+
+  try {
+    // Step 1: Enrich context from ServiceNow
+    steps.push({ step: "enriching", message: `Querying ServiceNow for ${incidentNumber} context...` });
+    const metadata = await mcpClient.enrichIncidentContext(incidentNumber);
+    steps.push({ step: "enriched", metadata });
+
+    if (metadata.error) {
+      return res.json({ trace, blocked: false, error: metadata.error as string });
+    }
+
+    // Step 2: Evaluate constraints
+    steps.push({ step: "evaluating", message: `Evaluating constraints for action: ${action}` });
+
+    const entityId = `itsm:incident:${incidentNumber}`;
+    const relatedEntities = metadata.ci_sys_id
+      ? [`itsm:cmdb_ci:${metadata.ci_sys_id}`]
+      : [];
+
+    const verdict = await constraintEngine.evaluate({
+      intendedAction: action,
+      targetEntity: entityId,
+      relatedEntities,
+      timestamp: new Date(),
+      metadata,
+    });
+
+    steps.push({
+      step: "verdict",
+      allowed: verdict.allowed,
+      summary: verdict.summary,
+      results: verdict.results.map(r => ({
+        constraintId: r.constraintId,
+        satisfied: r.satisfied,
+        severity: r.severity,
+        explanation: r.explanation,
+      })),
+    });
+
+    // Step 3: If allowed, execute the tool (or simulate)
+    let executionResult: unknown = null;
+    if (verdict.allowed && action === "resolve") {
+      steps.push({ step: "executing", message: "Constraints passed. Forwarding to ServiceNow MCP Server..." });
+      try {
+        executionResult = await mcpClient.executeTool("Resolve incident", {
+          incident_number: incidentNumber,
+          resolution_notes: (args as Record<string, string>)?.resolution_notes || "Resolved via Basanos demo",
+          resolution_code: (args as Record<string, string>)?.resolution_code || "Solved (Permanently)",
+        });
+        steps.push({ step: "executed", result: executionResult });
+      } catch (execErr) {
+        steps.push({ step: "execution_error", error: String(execErr) });
+      }
+    } else if (!verdict.allowed) {
+      steps.push({ step: "blocked", message: "Action blocked by Basanos constraints. Call NOT forwarded to ServiceNow." });
+    }
+
+    res.json({
+      trace,
+      blocked: !verdict.allowed,
+      verdict: {
+        allowed: verdict.allowed,
+        summary: verdict.summary,
+        results: verdict.results,
+      },
+      executionResult,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err), trace });
+  }
+});
+
 app.get("/api/agent-card", (_req, res) => {
   const card = generateAgentCard({
     url: "stdio://basanos",
@@ -874,6 +968,7 @@ function dashboardHtml(): string {
     <button onclick="showTab('agent-card')">Agent Card</button>
     <button onclick="showTab('audit')">Audit Trail</button>
     <button onclick="showTab('connect')">Connect</button>
+    <button onclick="showTab('demo')" style="color:var(--success);">Demo</button>
     <button onclick="showTab('discovery-rules')" style="margin-left:auto;">Discovery Rules</button>
   </nav>
   <main>
@@ -981,7 +1076,7 @@ function dashboardHtml(): string {
   async function showTab(tab) {
     currentTab = tab;
     document.querySelectorAll('nav button').forEach((b, i) => {
-      const tabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit', 'connect', 'discovery-rules'];
+      const tabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit', 'connect', 'demo', 'discovery-rules'];
       b.classList.toggle('active', tabs[i] === tab);
     });
     const el = document.getElementById('content');
@@ -1001,6 +1096,7 @@ function dashboardHtml(): string {
     } else {
       switch (tab) {
         case 'connect': await renderConnect(el); break;
+        case 'demo': await renderDemo(el); break;
         case 'discovery-rules': await renderDiscoveryRules(el); break;
       }
     }
@@ -1379,6 +1475,176 @@ function dashboardHtml(): string {
           'No code changes needed for new rules.' +
         '</p>' +
       '</div>';
+  }
+
+  // ── Demo Tab: MCP Client Simulator ──────────────────────────
+  var demoMessages = [];
+  var demoIncidents = [];
+
+  async function renderDemo(el) {
+    el.innerHTML = '<div class="card" style="max-width:900px;margin:0 auto;">' +
+      '<h2 style="margin-top:0;">MCP Client Simulator</h2>' +
+      '<p style="color:var(--text-secondary);margin-bottom:1rem;">' +
+        'Simulates an AI agent calling ServiceNow MCP tools through Basanos. ' +
+        'Basanos enriches context from ServiceNow, evaluates constraints, and blocks or allows the call.' +
+      '</p>' +
+      '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;" id="demo-scenarios">' +
+        '<button class="btn-primary" style="font-size:0.8rem;" onclick="demoListIncidents()">List Open Incidents</button>' +
+        '<button class="btn-primary" style="font-size:0.8rem;background:#e74c3c;" onclick="demoResolve(\'INC0025428\')">Resolve INC0025428 (P2, has active change)</button>' +
+        '<button class="btn-primary" style="font-size:0.8rem;background:var(--success);" onclick="demoResolve(\'INC0018834\')">Resolve INC0018834 (P4, no changes)</button>' +
+        '<button style="font-size:0.8rem;background:none;border:1px solid var(--border);color:var(--text);border-radius:0.4rem;padding:0.4rem 0.8rem;cursor:pointer;" onclick="demoClear()">Clear</button>' +
+      '</div>' +
+      '<div id="demo-custom" style="display:flex;gap:0.5rem;margin-bottom:1rem;">' +
+        '<input id="demo-inc-input" type="text" placeholder="Enter incident number (e.g. INC0010001)" style="flex:1;" />' +
+        '<button class="btn-primary" style="font-size:0.8rem;" onclick="demoResolve(document.getElementById(\'demo-inc-input\').value)">Resolve</button>' +
+      '</div>' +
+      '<div id="demo-chat" style="border:1px solid var(--border);border-radius:0.5rem;min-height:400px;max-height:600px;overflow-y:auto;padding:1rem;background:var(--bg);font-size:0.85rem;">' +
+        '<div style="color:var(--text-secondary);text-align:center;padding:2rem;">Click a scenario above to start the demo</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function demoAddMessage(role, content, type) {
+    type = type || 'text';
+    var chat = document.getElementById('demo-chat');
+    if (!chat) return;
+    // Clear placeholder
+    if (demoMessages.length === 0) chat.innerHTML = '';
+    demoMessages.push({ role: role, content: content, type: type });
+
+    var msg = document.createElement('div');
+    var isUser = role === 'user';
+    var isSystem = role === 'system';
+    var bgColor = isUser ? 'var(--accent)' : isSystem ? 'var(--card-bg)' : '#1a1a2e';
+    var textColor = isUser ? '#fff' : 'var(--text)';
+    var align = isUser ? 'flex-end' : 'flex-start';
+    var label = isUser ? 'You (Agent)' : isSystem ? 'System' : 'Basanos';
+
+    msg.style.cssText = 'display:flex;flex-direction:column;align-items:' + align + ';margin-bottom:0.75rem;';
+    msg.innerHTML = '<div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:0.2rem;">' + label + '</div>' +
+      '<div style="background:' + bgColor + ';color:' + textColor + ';padding:0.6rem 0.8rem;border-radius:0.5rem;max-width:85%;border:1px solid var(--border);">' + content + '</div>';
+    chat.appendChild(msg);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function demoClear() {
+    demoMessages = [];
+    var chat = document.getElementById('demo-chat');
+    if (chat) chat.innerHTML = '<div style="color:var(--text-secondary);text-align:center;padding:2rem;">Click a scenario above to start the demo</div>';
+  }
+
+  async function demoListIncidents() {
+    demoAddMessage('user', 'Show me open incidents with associated CIs');
+    demoAddMessage('basanos', '<em>Querying ServiceNow for active incidents...</em>');
+    try {
+      var res = await fetch('/api/demo/incidents');
+      var data = await res.json();
+      if (data.error) { demoAddMessage('basanos', '<span style="color:#e74c3c;">Error: ' + data.error + '</span>'); return; }
+      var incidents = data.incidents || [];
+      demoIncidents = incidents;
+      if (incidents.length === 0) { demoAddMessage('basanos', 'No active incidents found.'); return; }
+      var table = '<table style="width:100%;border-collapse:collapse;font-size:0.8rem;">' +
+        '<tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:0.3rem;">Number</th><th>Priority</th><th>State</th><th>CI</th><th>Description</th></tr>';
+      incidents.forEach(function(inc) {
+        var pColor = inc.priority.includes('Critical') ? '#e74c3c' : inc.priority.includes('High') ? '#e67e22' : 'var(--text)';
+        table += '<tr style="border-bottom:1px solid var(--border);">' +
+          '<td style="padding:0.3rem;"><strong>' + inc.number + '</strong></td>' +
+          '<td style="padding:0.3rem;color:' + pColor + ';">' + inc.priority + '</td>' +
+          '<td style="padding:0.3rem;">' + inc.state + '</td>' +
+          '<td style="padding:0.3rem;">' + (inc.cmdb_ci || '-') + '</td>' +
+          '<td style="padding:0.3rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (inc.short_description || '') + '</td>' +
+          '</tr>';
+      });
+      table += '</table>';
+      demoAddMessage('basanos', '<strong>' + incidents.length + ' incidents found:</strong><br>' + table +
+        '<div style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-secondary);">Click a scenario button or enter an incident number to test constraint enforcement.</div>');
+    } catch (err) {
+      demoAddMessage('basanos', '<span style="color:#e74c3c;">Failed to fetch incidents: ' + err + '</span>');
+    }
+  }
+
+  async function demoResolve(incNumber) {
+    if (!incNumber) { demoAddMessage('system', 'Please enter an incident number.'); return; }
+    demoAddMessage('user', 'Resolve incident <strong>' + incNumber + '</strong>');
+    demoAddMessage('basanos', '<em>Step 1: Enriching context from ServiceNow...</em>');
+
+    try {
+      var res = await fetch('/api/demo/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resolve', incidentNumber: incNumber }),
+      });
+      var data = await res.json();
+
+      if (data.error) {
+        demoAddMessage('basanos', '<span style="color:#e74c3c;">Error: ' + data.error + '</span>');
+        return;
+      }
+
+      // Show enriched metadata
+      var steps = (data.trace && data.trace.steps) || [];
+      var enrichedStep = steps.find(function(s) { return s.step === 'enriched'; });
+      if (enrichedStep && enrichedStep.metadata) {
+        var m = enrichedStep.metadata;
+        var metaHtml = '<div style="background:rgba(255,255,255,0.05);padding:0.5rem;border-radius:0.3rem;margin-bottom:0.5rem;">' +
+          '<strong>Context gathered:</strong><br>' +
+          '<span style="color:var(--text-secondary);">Incident:</span> ' + (m.incident_number || incNumber) + ' - ' + (m.incident_description || '') + '<br>' +
+          '<span style="color:var(--text-secondary);">Priority:</span> <strong>' + (m.priority || '?') + '</strong><br>' +
+          '<span style="color:var(--text-secondary);">State:</span> ' + (m.state || '?') + '<br>' +
+          '<span style="color:var(--text-secondary);">CI:</span> ' + (m.ci_name || 'none') + '<br>' +
+          '<span style="color:var(--text-secondary);">Active changes on CI:</span> ' + (m.active_changes_on_ci || 0);
+        if (m.active_change_numbers && m.active_change_numbers.length > 0) {
+          metaHtml += ' (' + m.active_change_numbers.join(', ') + ')';
+        }
+        metaHtml += '<br><span style="color:var(--text-secondary);">Change freeze active:</span> <strong style="color:' + (m.change_freeze_active ? '#e74c3c' : 'var(--success)') + ';">' + (m.change_freeze_active ? 'YES' : 'No') + '</strong>';
+        metaHtml += '<br><span style="color:var(--text-secondary);">SLA breached:</span> ' + (m.sla_breached ? 'Yes (' + m.sla_breach_count + ')' : 'No');
+        metaHtml += '</div>';
+        demoAddMessage('basanos', '<em>Step 1 complete.</em> ' + metaHtml);
+      }
+
+      // Show constraint evaluation
+      demoAddMessage('basanos', '<em>Step 2: Evaluating constraints for action "resolve"...</em>');
+
+      var verdict = data.verdict;
+      if (verdict) {
+        var resultsHtml = '';
+        (verdict.results || []).forEach(function(r) {
+          var icon = r.satisfied ? '<span style="color:var(--success);">PASS</span>' : (r.severity === 0 ? '<span style="color:#e74c3c;">BLOCK</span>' : '<span style="color:#e67e22;">WARN</span>');
+          resultsHtml += '<div style="padding:0.3rem 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+            icon + ' <strong>' + r.constraintId + '</strong><br>' +
+            '<span style="font-size:0.75rem;color:var(--text-secondary);">' + r.explanation + '</span></div>';
+        });
+
+        var verdictColor = verdict.allowed ? 'var(--success)' : '#e74c3c';
+        var verdictIcon = verdict.allowed ? 'ALLOWED' : 'BLOCKED';
+        demoAddMessage('basanos',
+          '<div style="background:rgba(255,255,255,0.05);padding:0.5rem;border-radius:0.3rem;">' +
+          '<strong>Constraint Results:</strong>' + resultsHtml +
+          '<div style="margin-top:0.5rem;padding:0.5rem;background:' + verdictColor + '22;border:1px solid ' + verdictColor + ';border-radius:0.3rem;text-align:center;">' +
+          '<strong style="color:' + verdictColor + ';font-size:1.1rem;">' + verdictIcon + '</strong><br>' +
+          '<span style="font-size:0.8rem;">' + verdict.summary + '</span></div></div>');
+      }
+
+      // Show execution result or blocked message
+      if (data.blocked) {
+        demoAddMessage('basanos', '<div style="padding:0.5rem;background:#e74c3c22;border:1px solid #e74c3c;border-radius:0.3rem;">' +
+          '<strong>Action NOT forwarded to ServiceNow.</strong> The MCP tool call was intercepted by Basanos and blocked before reaching the ServiceNow MCP Server.</div>');
+      } else {
+        var execStep = steps.find(function(s) { return s.step === 'executed' || s.step === 'execution_error'; });
+        if (execStep && execStep.step === 'executed') {
+          demoAddMessage('basanos', '<div style="padding:0.5rem;background:rgba(46,204,113,0.15);border:1px solid var(--success);border-radius:0.3rem;">' +
+            '<strong>Step 3: Forwarded to ServiceNow MCP Server.</strong><br>' +
+            '<span style="font-size:0.8rem;">Tool "Resolve incident" executed successfully.</span></div>');
+        } else if (execStep && execStep.step === 'execution_error') {
+          demoAddMessage('basanos', '<div style="padding:0.5rem;background:#e67e2222;border:1px solid #e67e22;border-radius:0.3rem;">' +
+            '<strong>Step 3: Forwarded but execution failed.</strong><br>' +
+            '<span style="font-size:0.8rem;">' + (execStep.error || 'Unknown error') + '</span></div>');
+        }
+      }
+
+    } catch (err) {
+      demoAddMessage('basanos', '<span style="color:#e74c3c;">Request failed: ' + err + '</span>');
+    }
   }
 
   async function renderConnect(el) {

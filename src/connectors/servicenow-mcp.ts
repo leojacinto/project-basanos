@@ -282,6 +282,108 @@ export class ServiceNowMCPClient {
   }
 
   /**
+   * Enrich context for an incident-related action by querying ServiceNow.
+   * Returns metadata suitable for constraint evaluation.
+   */
+  async enrichIncidentContext(incidentNumber: string): Promise<Record<string, unknown>> {
+    const metadata: Record<string, unknown> = {};
+
+    // 1. Query the incident record
+    const incQuery = `/api/now/table/incident?sysparm_query=number=${encodeURIComponent(incidentNumber)}&sysparm_fields=sys_id,number,short_description,priority,state,cmdb_ci,assigned_to,assignment_group&sysparm_display_value=all&sysparm_limit=1`;
+    const incResp = (await this.makeRequest("GET", incQuery)) as {
+      result: Array<Record<string, { value: string; display_value: string }>>;
+    };
+    const incident = incResp.result?.[0];
+    if (!incident) {
+      return { error: `Incident ${incidentNumber} not found`, incident_exists: false };
+    }
+
+    metadata.incident_number = incident.number?.display_value || incidentNumber;
+    metadata.incident_description = incident.short_description?.display_value || "";
+    metadata.priority = `P${incident.priority?.value || "5"}`;
+    metadata.state = incident.state?.display_value || "";
+    metadata.assigned_to = incident.assigned_to?.display_value || "";
+    metadata.assignment_group = incident.assignment_group?.display_value || "";
+    metadata.incident_exists = true;
+
+    const ciSysId = incident.cmdb_ci?.value || "";
+    const ciName = incident.cmdb_ci?.display_value || "";
+    metadata.ci_name = ciName;
+    metadata.ci_sys_id = ciSysId;
+
+    // 2. Check for active change requests on the same CI
+    if (ciSysId) {
+      try {
+        const chgQuery = `/api/now/table/change_request?sysparm_query=cmdb_ci=${ciSysId}^active=true&sysparm_fields=number,short_description,state,type&sysparm_display_value=true&sysparm_limit=5`;
+        const chgResp = (await this.makeRequest("GET", chgQuery)) as {
+          result: Array<Record<string, string>>;
+        };
+        const activeChanges = chgResp.result || [];
+        metadata.active_changes_on_ci = activeChanges.length;
+        metadata.change_freeze_active = activeChanges.length > 0;
+        metadata.active_change_numbers = activeChanges.map(c => c.number);
+        metadata.active_change_details = activeChanges.map(c => ({
+          number: c.number,
+          description: c.short_description,
+          state: c.state,
+          type: c.type,
+        }));
+      } catch {
+        metadata.change_freeze_active = false;
+        metadata.active_changes_on_ci = 0;
+      }
+    } else {
+      metadata.change_freeze_active = false;
+      metadata.active_changes_on_ci = 0;
+    }
+
+    // 3. Check for SLA breaches on this incident
+    try {
+      const incSysId = incident.sys_id?.value || "";
+      if (incSysId) {
+        const slaQuery = `/api/now/table/task_sla?sysparm_query=task=${incSysId}^has_breached=true&sysparm_fields=sla,has_breached&sysparm_limit=5`;
+        const slaResp = (await this.makeRequest("GET", slaQuery)) as {
+          result: Array<Record<string, unknown>>;
+        };
+        const breachedSLAs = slaResp.result || [];
+        metadata.sla_breached = breachedSLAs.length > 0;
+        metadata.sla_breach_count = breachedSLAs.length;
+        // Assume penalty for demo purposes if breached
+        metadata.sla_has_penalty = breachedSLAs.length > 0;
+      }
+    } catch {
+      metadata.sla_breached = false;
+      metadata.sla_has_penalty = false;
+    }
+
+    return metadata;
+  }
+
+  /**
+   * Query incidents from ServiceNow.
+   */
+  async queryIncidents(filter?: string): Promise<Array<Record<string, string>>> {
+    const query = filter
+      ? `/api/now/table/incident?sysparm_query=${encodeURIComponent(filter)}&sysparm_fields=number,short_description,priority,state,cmdb_ci,assigned_to&sysparm_display_value=all&sysparm_limit=10`
+      : `/api/now/table/incident?sysparm_query=active=true&sysparm_fields=number,short_description,priority,state,cmdb_ci,assigned_to&sysparm_display_value=all&sysparm_limit=10`;
+    const resp = (await this.makeRequest("GET", query)) as {
+      result: Array<Record<string, unknown>>;
+    };
+    // Flatten display_value objects to plain strings
+    return (resp.result || []).map(row => {
+      const flat: Record<string, string> = {};
+      for (const [k, v] of Object.entries(row)) {
+        if (v && typeof v === "object" && "display_value" in (v as Record<string, unknown>)) {
+          flat[k] = (v as Record<string, string>).display_value || "";
+        } else {
+          flat[k] = String(v ?? "");
+        }
+      }
+      return flat;
+    });
+  }
+
+  /**
    * Get instance URL for display/logging.
    */
   getInstanceUrl(): string {
