@@ -1490,13 +1490,13 @@ function dashboardHtml(): string {
       '</p>' +
       '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;" id="demo-scenarios">' +
         '<button class="btn-primary" style="font-size:0.8rem;" onclick="demoListIncidents()">List Open Incidents</button>' +
-        '<button class="btn-primary" style="font-size:0.8rem;background:#e74c3c;" onclick="demoResolve(\'INC0025428\')">Resolve INC0025428 (P2, has active change)</button>' +
-        '<button class="btn-primary" style="font-size:0.8rem;background:var(--success);" onclick="demoResolve(\'INC0018834\')">Resolve INC0018834 (P4, no changes)</button>' +
+        '<button class="btn-primary" style="font-size:0.8rem;background:#e74c3c;" onclick="demoResolve(&apos;INC0025428&apos;)">Resolve INC0025428 (P2, has active change)</button>' +
+        '<button class="btn-primary" style="font-size:0.8rem;background:var(--success);" onclick="demoResolve(&apos;INC0018834&apos;)">Resolve INC0018834 (P4, no changes)</button>' +
         '<button style="font-size:0.8rem;background:none;border:1px solid var(--border);color:var(--text);border-radius:0.4rem;padding:0.4rem 0.8rem;cursor:pointer;" onclick="demoClear()">Clear</button>' +
       '</div>' +
       '<div id="demo-custom" style="display:flex;gap:0.5rem;margin-bottom:1rem;">' +
         '<input id="demo-inc-input" type="text" placeholder="Enter incident number (e.g. INC0010001)" style="flex:1;" />' +
-        '<button class="btn-primary" style="font-size:0.8rem;" onclick="demoResolve(document.getElementById(\'demo-inc-input\').value)">Resolve</button>' +
+        '<button class="btn-primary" style="font-size:0.8rem;" onclick="demoResolve(document.getElementById(&apos;demo-inc-input&apos;).value)">Resolve</button>' +
       '</div>' +
       '<div id="demo-chat" style="border:1px solid var(--border);border-radius:0.5rem;min-height:400px;max-height:600px;overflow-y:auto;padding:1rem;background:var(--bg);font-size:0.85rem;">' +
         '<div style="color:var(--text-secondary);text-align:center;padding:2rem;">Click a scenario above to start the demo</div>' +

@@ -108,8 +108,8 @@ constraints:
     severity: warn
     status: candidate
     description: >-
-      13 CIs have >3 active incidents. Worst: "Impact Calculation" with 208 incidents. Systemic instability needs
-      problem management investigation. [Evidence: 13 CIs with recurring failures, worst: Impact Calculation (208
+      13 CIs have >3 active incidents. Worst: "Impact Calculation" with 207 incidents. Systemic instability needs
+      problem management investigation. [Evidence: 13 CIs with recurring failures, worst: Impact Calculation (207
       incidents)]
     conditions: []
     violationMessage: This CI has recurring failures. Consider problem investigation before further changes.

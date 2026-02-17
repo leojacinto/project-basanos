@@ -1,6 +1,6 @@
 {
   "source": "https://demoalectriallwfza130373.service-now.com/",
-  "importedAt": "2026-02-17T12:06:47.789Z",
+  "importedAt": "2026-02-17T13:47:47.231Z",
   "pipeline": "basanos cli import",
   "tablesImported": 6,
   "fieldsImported": 310,
@@ -13,7 +13,7 @@
     "problem",
     "sys_user_group"
   ],
-  "discoveredAt": "2026-02-17T12:06:57.534Z",
+  "discoveredAt": "2026-02-17T13:47:52.268Z",
   "constraintsDiscovered": 9,
   "discoveryEvidence": [
     {
@@ -56,7 +56,7 @@
       "id": "servicenow-live:discovered:recurring_ci_failures",
       "name": "Recurring CI Failures (Discovered)",
       "severity": "warn",
-      "evidence": "13 CIs with recurring failures, worst: Impact Calculation (208 incidents)"
+      "evidence": "13 CIs with recurring failures, worst: Impact Calculation (207 incidents)"
     },
     {
       "id": "servicenow-live:discovered:failed_changes_on_ci",
