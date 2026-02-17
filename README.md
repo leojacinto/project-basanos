@@ -6,6 +6,8 @@
 
 This project brings that idea to AI agents.
 
+Basanos is a **proof-of-concept**, not production middleware. It validates an architectural thesis with one working connector (ServiceNow) and a mock cross-system demo. See [What Works Today](#what-works-today) and [What is Next](#what-is-next) for the honest breakdown.
+
 ## The Problem
 
 AI agents can call APIs across ServiceNow, Jira, Salesforce, and more. But no single system knows what the others are doing. ServiceNow business rules cannot see Jira deploys. Jira automation cannot see ServiceNow change freezes. When agents operate across these systems, there is no shared enforcement layer.
@@ -35,6 +37,7 @@ These are design goals, not shipped features.
 - **Agent client integrations** - Basanos runs as an MCP server that any MCP client can call, but no pre-built Claude/GPT integrations ship with the repo yet.
 - **A2A protocol** - agent card types are defined; no runtime A2A server yet. This will allow other agents to discover what Basanos knows and can enforce.
 - **Additional discovery heuristics** - more pattern detectors beyond the current set (e.g., assignment group capacity, approval chain violations).
+- **Cross-system semantic alignment** - mapping equivalent concepts across systems (e.g., is a Jira "Epic" the same as a ServiceNow "Story"? Is Jira "Done" equivalent to ServiceNow "Closed"?). This is where the hard ontology problem lives and where real cross-system value would compound. Not yet tackled.
 
 ## Architecture
 
@@ -424,9 +427,22 @@ The problem is well-identified. Anthropic calls it "context engineering" ([Build
 | [**ZBrain**](https://zbrain.ai) | Agentic platform with knowledge graphs + vector stores. | Closer in concept, but proprietary platform play. |
 | [**Hiflylabs**](https://hiflylabs.com/blog) | Reference architecture for semantic + agent layers. | A blog post describing what should exist. Not a shipped tool. |
 
-### The gap
+### MCP governance (emerging category)
 
-No one has shipped an **open-source, MCP-native rules engine** for this problem. Basanos is a working prototype that demonstrates the pattern with one production connector (ServiceNow) and a mock cross-system demo (Jira). The architecture is designed to extend to additional systems.
+Since Basanos started, MCP gateways and agent governance have become an active category:
+
+| Project | What it does | Status |
+|---------|-------------|--------|
+| [**Cerbos**](https://cerbos.dev) | Policy enforcement layer for MCP | Linux Foundation backing, enterprise sales |
+| [**SAFE-MCP**](https://openid.net) | MCP security standard | Linux Foundation + OpenID Foundation |
+| [**TrojAI Defend**](https://trojai.com) | Runtime enforcement for MCP tool calls | Commercial, shipped |
+| **Red Hat OpenShift AI** | MCP governance baked into platform | Enterprise platform play |
+
+These are funded teams solving the "enforcement layer for agent tool calls" problem. Basanos overlaps with this space.
+
+### Where Basanos sits
+
+The specific combination of MCP proxy + YAML rules engine + rule discovery + cross-system enforcement does not exist as a single open-source package today. But the individual pieces are being built by companies with more resources. Basanos is a proof-of-concept that validates the pattern. It is not competing with funded teams for production deployments.
 
 ## Design Principles
 
