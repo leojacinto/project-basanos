@@ -94,6 +94,13 @@ export class OntologyEngine {
   }
 
   /**
+   * Get all stored entity instances.
+   */
+  getAllEntities(): Entity[] {
+    return Array.from(this.entities.values());
+  }
+
+  /**
    * Retrieve an entity by ID.
    */
   getEntity(id: EntityId): Entity | undefined {
