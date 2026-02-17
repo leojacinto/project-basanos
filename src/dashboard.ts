@@ -709,7 +709,7 @@ function dashboardHtml(): string {
     document.getElementById('theme-label').textContent = saved === 'dark' ? 'Dark' : 'Light';
   }
 
-  function showTab(tab) {
+  async function showTab(tab) {
     currentTab = tab;
     document.querySelectorAll('nav button').forEach((b, i) => {
       const tabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit', 'connect'];
@@ -722,7 +722,7 @@ function dashboardHtml(): string {
       case 'constraints': renderConstraints(el); break;
       case 'agent-card': renderAgentCard(el); break;
       case 'audit': renderAudit(el); break;
-      case 'connect': renderConnect(el); break;
+      case 'connect': await renderConnect(el); break;
     }
   }
 
