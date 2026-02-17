@@ -5,7 +5,7 @@ services:
   # Just run: docker compose up
   # Then open http://localhost:3001
   basanos:
-    build: .
+    image: leofrancia08489/project-basanos:v0.1.0
     ports:
       - "3001:3001"    # Dashboard
       - "8090:8090"    # Mock ServiceNow

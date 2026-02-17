@@ -177,7 +177,21 @@ sequenceDiagram
 
 Every answer traces back to a real API call, a real record, a real timestamp. The provenance is baked in.
 
-## Quick Start (Docker - no dev tools needed)
+## Quick Start with Docker (Recommended)
+
+The easiest way to run Basanos. No need to install Node.js or TypeScript.
+
+### Step 1: Install Docker Desktop
+
+Docker Desktop is the only prerequisite.
+
+- **macOS**: Download [Docker Desktop for Mac](https://desktop.docker.com/mac/main/amd64/Docker.dmg), drag to Applications, launch
+- **Windows**: Download [Docker Desktop for Windows](https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe), run installer, restart
+- **Linux**: `curl -fsSL https://get.docker.com -o get-docker.sh && sudo sh get-docker.sh`
+
+Verify: `docker --version`
+
+### Step 2: Run with Docker Compose
 
 ```bash
 git clone https://github.com/leojacinto/project-basanos.git
@@ -185,9 +199,13 @@ cd project-basanos
 docker compose up
 ```
 
-Open [http://localhost:3001](http://localhost:3001) - that's it. The demo runs a mock ServiceNow instance with sample ITSM data, the full discovery pipeline, and the dashboard.
+Open [http://localhost:3001](http://localhost:3001) - the dashboard loads with a mock ServiceNow instance, sample ITSM data, and 11 discovery rules.
 
-To connect to a **real ServiceNow instance**, create a `.env` file:
+**Docker Hub image**: [`leofrancia08489/project-basanos:v0.1.0`](https://hub.docker.com/r/leofrancia08489/project-basanos)
+
+### Step 3: Connect to a real ServiceNow instance (optional)
+
+Create a `.env` file in the project root:
 
 ```bash
 SERVICENOW_INSTANCE_URL=https://your-instance.service-now.com
@@ -195,7 +213,9 @@ SERVICENOW_USERNAME=admin
 SERVICENOW_PASSWORD=your-password
 ```
 
-Then restart: `docker compose up --build`
+Then restart: `docker compose up`
+
+The dashboard will use your real credentials. Go to the **Connect** tab, click **Import & Discover** to pull live data.
 
 ## Quick Start (Developer)
 
