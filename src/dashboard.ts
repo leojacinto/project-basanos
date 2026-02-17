@@ -9,6 +9,8 @@
 
 import express from "express";
 import net from "net";
+import { execSync } from "child_process";
+import readline from "readline";
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -235,16 +237,75 @@ function findOpenPort(startPort: number, maxAttempts = 20): Promise<number> {
   });
 }
 
+/**
+ * Check for existing Basanos dashboard processes and prompt to kill them.
+ * Follows the same pattern as project-virgil's start.sh.
+ */
+function findProcessesOnPort(port: number): { pid: string; command: string }[] {
+  try {
+    const output = execSync(`lsof -ti:${port} 2>/dev/null`, { encoding: "utf-8" }).trim();
+    if (!output) return [];
+    return output.split("\n").filter(Boolean).map((pid) => {
+      let command = "unknown";
+      try {
+        command = execSync(`ps -p ${pid} -o command= 2>/dev/null`, { encoding: "utf-8" }).trim();
+      } catch { /* ignore */ }
+      return { pid, command };
+    });
+  } catch {
+    return [];
+  }
+}
+
+function askUser(question: string): Promise<boolean> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase().startsWith("y"));
+    });
+  });
+}
+
+async function killExistingIfNeeded(port: number): Promise<void> {
+  const procs = findProcessesOnPort(port);
+  if (procs.length === 0) return;
+
+  const isBasanos = procs.some((p) => p.command.includes("dashboard") || p.command.includes("basanos"));
+  if (!isBasanos) return;
+
+  console.log(`\n\u26A0\uFE0F  Found existing Basanos dashboard on port ${port}:`);
+  for (const p of procs) {
+    console.log(`   PID ${p.pid}: ${p.command.substring(0, 80)}`);
+  }
+
+  const shouldKill = await askUser("   Kill and restart? (y/n) ");
+  if (shouldKill) {
+    for (const p of procs) {
+      try { process.kill(parseInt(p.pid, 10), "SIGTERM"); } catch { /* already gone */ }
+    }
+    console.log("   Stopped existing process(es). Restarting...\n");
+    await new Promise((r) => setTimeout(r, 1000));
+  } else {
+    console.log("   Keeping existing dashboard. Exiting.");
+    process.exit(0);
+  }
+}
+
 const preferredPort = parseInt(process.env.BASANOS_PORT || "3001", 10);
-findOpenPort(preferredPort).then((port) => {
+
+(async () => {
+  await killExistingIfNeeded(preferredPort);
+
+  const port = await findOpenPort(preferredPort);
   app.listen(port, () => {
     if (port !== preferredPort) {
       console.log(`Port ${preferredPort} in use, found open port ${port}`);
     }
     console.log(`Basanos Dashboard running at http://localhost:${port}`);
   });
-}).catch((err) => {
-  console.error("Could not find an open port:", err);
+})().catch((err) => {
+  console.error("Could not start dashboard:", err);
   process.exit(1);
 });
 
