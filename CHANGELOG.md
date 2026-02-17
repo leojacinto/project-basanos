@@ -28,6 +28,14 @@ All notable changes to project-basanos are documented here.
 - Documented correct approach: scope, table hierarchy, input subclass (`sn_mcp_scripted_rest_input`)
 - Tool inputs: incident_number (required), resolution_notes (required), resolution_code (optional)
 
+### Multi-system Demo tab
+- Separate tab for cross-system constraint enforcement (ServiceNow + Jira)
+- Mock Jira deploy data correlated to real ServiceNow CIs
+- `cross-system:jira_deploy_active` constraint with promote/demote lifecycle
+- Three scenarios: blocked by both systems, blocked by Jira only (the killer demo), both clear
+- Dual enrichment: queries ServiceNow for incident/CI/changes, queries Jira for active deploys
+- Chat UI shows source labels per constraint result ([ServiceNow] vs [Jira])
+
 ### Dashboard improvements
 - MCP proxy Connect tab: single MCP Server URL input, server discovery button
 - Environment config API serves `mcpServerUrl` for form pre-population

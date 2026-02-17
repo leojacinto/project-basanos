@@ -177,15 +177,27 @@ sequenceDiagram
 
 Every answer traces back to a real API call, a real record, a real timestamp. The provenance is baked in.
 
-## Demo: Discover, Promote, Enforce
+## Demo
 
-The **Demo** tab on the dashboard walks through the full Basanos narrative:
+The dashboard has two demo tabs:
 
-1. **Discover** - Basanos connects to ServiceNow, analyzes data patterns (P1 reopen rates, change freezes, SLA breaches, CI failure patterns), and surfaces constraint candidates.
-2. **Promote** - A human reviews discovered candidates and promotes the ones that matter. No rules fire without human review.
-3. **Enforce** - Any MCP client calls a tool through Basanos. Basanos enriches context from ServiceNow (incident priority, CI, active changes, SLAs), evaluates promoted constraints, and blocks or allows the call.
+### Single-system Demo
 
-The demo uses your live ServiceNow instance with real incidents and real change requests.
+Walks through the full Basanos narrative against a live ServiceNow instance:
+
+1. **Discover** - Basanos analyzes data patterns and surfaces constraint candidates. While this can be done via Business Rules in ServiceNow or equivalent mechanisms in other systems, the same concept applies across multiple systems and agent platforms.
+2. **Promote** - A human reviews candidates and promotes the ones that matter. No rules fire without human review.
+3. **Enforce** - Any MCP client calls a tool through Basanos. Basanos enriches context, evaluates constraints, and blocks or allows the call.
+
+### Multi-system Demo
+
+The scenario no single system can handle alone. Basanos enriches context from **both** ServiceNow and Jira, then evaluates constraints that span both systems:
+
+- **INC0025428** - Blocked by ServiceNow change freeze AND Jira deploy
+- **INC0025729** - ServiceNow says OK, but Jira has an active deploy. **BLOCKED.** ServiceNow business rules would have let this through.
+- **INC0018834** - Both systems clear. Allowed.
+
+This is the differentiator: no single system sees both risks. Basanos evaluates constraints across system boundaries.
 
 ## Quick Start with Docker (Recommended)
 

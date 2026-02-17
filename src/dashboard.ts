@@ -1081,6 +1081,7 @@ function dashboardHtml(): string {
     <button onclick="showTab('audit')">Audit Trail</button>
     <button onclick="showTab('connect')">Connect</button>
     <button onclick="showTab('demo')" style="color:var(--success);">Single-system Demo</button>
+    <button onclick="showTab('multi-demo')" style="color:var(--success);">Multi-system Demo</button>
     <button onclick="showTab('discovery-rules')" style="margin-left:auto;">Discovery Rules</button>
   </nav>
   <main>
@@ -1188,7 +1189,7 @@ function dashboardHtml(): string {
   async function showTab(tab) {
     currentTab = tab;
     document.querySelectorAll('nav button').forEach((b, i) => {
-      const tabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit', 'connect', 'demo', 'discovery-rules'];
+      const tabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit', 'connect', 'demo', 'multi-demo', 'discovery-rules'];
       b.classList.toggle('active', tabs[i] === tab);
     });
     const el = document.getElementById('content');
@@ -1209,6 +1210,7 @@ function dashboardHtml(): string {
       switch (tab) {
         case 'connect': await renderConnect(el); break;
         case 'demo': await renderDemo(el); break;
+        case 'multi-demo': await renderMultiDemo(el); break;
         case 'discovery-rules': await renderDiscoveryRules(el); break;
       }
     }
@@ -1699,8 +1701,25 @@ function dashboardHtml(): string {
         '</div>' +
       '</div>' +
 
-      // ── Multi-system Demo ──
-      '<h2 style="margin-top:2rem;margin-bottom:0.75rem;">Multi-system Demo</h2>' +
+    '</div>';
+  }
+
+  // ── Multi-system Demo Tab ──────────────────────────────────
+
+  async function renderMultiDemo(el) {
+    var allConstraints = [];
+    try {
+      var domains = ['itsm', 'servicenow-demo', 'servicenow-live'];
+      for (var di = 0; di < domains.length; di++) {
+        var cRes = await fetch('/api/domains/' + domains[di] + '/constraints');
+        if (cRes.ok) { var cData = await cRes.json(); allConstraints = allConstraints.concat(cData); }
+      }
+    } catch(e) { /* ignore */ }
+
+    var cs = allConstraints.find(function(c) { return c.id === 'cross-system:jira_deploy_active'; });
+
+    el.innerHTML = '<div style="max-width:900px;margin:0 auto;">' +
+      '<h2 style="margin-top:0;margin-bottom:0.75rem;">Multi-system Demo</h2>' +
 
       '<div class="card" style="margin-bottom:1rem;">' +
         '<h3 style="margin-top:0;">Cross-system Constraint</h3>' +
@@ -1710,13 +1729,12 @@ function dashboardHtml(): string {
         '</p>' +
         '<div id="multi-constraint">' +
         (function() {
-          var cs = allConstraints.find(function(c) { return c.id === 'cross-system:jira_deploy_active'; });
           if (!cs) return '<p style="color:var(--text-secondary);font-size:0.85rem;">Cross-system constraint not loaded.</p>';
           if (cs.status === 'promoted') {
             return '<div style="padding:0.5rem;border:1px solid var(--success);border-radius:0.4rem;font-size:0.8rem;border-left:3px solid var(--success);">' +
               '<div style="display:flex;justify-content:space-between;align-items:center;">' +
                 '<div><strong>' + cs.name + '</strong> <span class="badge badge-type">' + cs.severity + '</span> <span style="color:var(--success);font-size:0.75rem;">PROMOTED</span></div>' +
-                '<button style="font-size:0.75rem;padding:3px 10px;border:1px solid var(--border);border-radius:0.4rem;background:none;color:var(--text-secondary);cursor:pointer;" onclick="demoDemote(&apos;cross-system:jira_deploy_active&apos;)">Demote</button>' +
+                '<button style="font-size:0.75rem;padding:3px 10px;border:1px solid var(--border);border-radius:0.4rem;background:none;color:var(--text-secondary);cursor:pointer;" onclick="multiDemote(&apos;cross-system:jira_deploy_active&apos;)">Demote</button>' +
               '</div>' +
               '<div style="color:var(--text-secondary);margin-top:0.25rem;">' + cs.description + '</div>' +
             '</div>';
@@ -1724,7 +1742,7 @@ function dashboardHtml(): string {
             return '<div style="padding:0.5rem;border:1px solid var(--border);border-radius:0.4rem;font-size:0.8rem;">' +
               '<div style="display:flex;justify-content:space-between;align-items:center;">' +
                 '<div><strong>' + cs.name + '</strong> <span class="badge badge-type">' + cs.severity + '</span> <span style="color:var(--text-secondary);font-size:0.75rem;">CANDIDATE</span></div>' +
-                '<button class="btn-primary" style="font-size:0.75rem;padding:3px 10px;" onclick="demoPromote(&apos;cross-system:jira_deploy_active&apos;)">Promote</button>' +
+                '<button class="btn-primary" style="font-size:0.75rem;padding:3px 10px;" onclick="multiPromote(&apos;cross-system:jira_deploy_active&apos;)">Promote</button>' +
               '</div>' +
               '<div style="color:var(--text-secondary);margin-top:0.25rem;">' + cs.description + '</div>' +
             '</div>';
@@ -1751,6 +1769,26 @@ function dashboardHtml(): string {
       '</div>' +
 
     '</div>';
+  }
+
+  async function multiPromote(constraintId) {
+    try {
+      var res = await fetch('/api/constraints/' + encodeURIComponent(constraintId) + '/status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'promoted' }),
+      });
+      if (res.ok) { multiMessages = []; await renderMultiDemo(document.getElementById('content')); }
+    } catch(e) { /* ignore */ }
+  }
+
+  async function multiDemote(constraintId) {
+    try {
+      var res = await fetch('/api/constraints/' + encodeURIComponent(constraintId) + '/status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'candidate' }),
+      });
+      if (res.ok) { multiMessages = []; await renderMultiDemo(document.getElementById('content')); }
+    } catch(e) { /* ignore */ }
   }
 
   // ── Multi-system chat helpers ──
