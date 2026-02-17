@@ -30,11 +30,33 @@ export interface SNMCPTool {
 }
 
 export interface SNMCPConfig {
-  instanceUrl: string;
-  serverName: string;
+  /** Full MCP Server URL, e.g. https://instance.service-now.com/sncapps/mcp-server/mcp/sn_mcp_server_default */
+  mcpServerUrl?: string;
+  /** Instance URL (parsed from mcpServerUrl if not provided) */
+  instanceUrl?: string;
+  /** Server name (parsed from mcpServerUrl if not provided) */
+  serverName?: string;
   tokenFile: string;
   clientId?: string;
   clientSecret?: string;
+}
+
+/**
+ * Parse a full MCP Server URL into instance URL and server name.
+ * URL format: https://<instance>.service-now.com/sncapps/mcp-server/mcp/<server-name>
+ */
+export function parseMCPServerUrl(url: string): { instanceUrl: string; serverName: string } {
+  const trimmed = url.replace(/\/$/, "");
+  const mcpPath = "/sncapps/mcp-server/mcp/";
+  const idx = trimmed.indexOf(mcpPath);
+  if (idx >= 0) {
+    return {
+      instanceUrl: trimmed.substring(0, idx),
+      serverName: trimmed.substring(idx + mcpPath.length),
+    };
+  }
+  // Fallback: treat as instance URL with default server
+  return { instanceUrl: trimmed, serverName: "sn_mcp_server_default" };
 }
 
 export class ServiceNowMCPClient {
@@ -48,8 +70,14 @@ export class ServiceNowMCPClient {
   private toolsCache: SNMCPTool[] | null = null;
 
   constructor(config: SNMCPConfig) {
-    this.instanceUrl = config.instanceUrl.replace(/\/$/, "");
-    this.serverName = config.serverName;
+    if (config.mcpServerUrl) {
+      const parsed = parseMCPServerUrl(config.mcpServerUrl);
+      this.instanceUrl = parsed.instanceUrl;
+      this.serverName = parsed.serverName;
+    } else {
+      this.instanceUrl = (config.instanceUrl || "").replace(/\/$/, "");
+      this.serverName = config.serverName || "sn_mcp_server_default";
+    }
     this.tokenFile = config.tokenFile;
     this.clientId = config.clientId;
     this.clientSecret = config.clientSecret;

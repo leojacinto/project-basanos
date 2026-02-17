@@ -95,23 +95,24 @@ console.error(`Loaded ${domainsLoaded} domain(s), ${constraintsLoaded} constrain
 // ── Initialize ServiceNow MCP Client (if configured) ────────
 
 let snMCPClient: ServiceNowMCPClient | null = null;
+const snMCPServerUrl = process.env.SERVICENOW_MCP_SERVER_URL;
 const snInstanceUrl = process.env.SERVICENOW_INSTANCE_URL;
 const snTokenFile = process.env.SERVICENOW_MCP_TOKEN_FILE || `${process.env.HOME}/.claude/servicenow-tokens.json`;
-const snServerName = process.env.SERVICENOW_MCP_SERVER || "sn_mcp_server_default";
 const snClientId = process.env.SERVICENOW_CLIENT_ID;
 const snClientSecret = process.env.SERVICENOW_CLIENT_SECRET;
 
-if (snInstanceUrl && existsSync(snTokenFile)) {
+if ((snMCPServerUrl || snInstanceUrl) && existsSync(snTokenFile)) {
   snMCPClient = new ServiceNowMCPClient({
-    instanceUrl: snInstanceUrl,
-    serverName: snServerName,
+    mcpServerUrl: snMCPServerUrl || undefined,
+    instanceUrl: snMCPServerUrl ? undefined : snInstanceUrl,
+    serverName: snMCPServerUrl ? undefined : (process.env.SERVICENOW_MCP_SERVER || "sn_mcp_server_default"),
     tokenFile: snTokenFile,
     clientId: snClientId,
     clientSecret: snClientSecret,
   });
-  console.error(`ServiceNow MCP Client initialized: ${snInstanceUrl} (server: ${snServerName})`);
+  console.error(`ServiceNow MCP Client initialized: ${snMCPClient.getInstanceUrl()} (server: ${snMCPClient.getServerName()})`);
 } else {
-  console.error("ServiceNow MCP proxy disabled (no instance URL or token file)");
+  console.error("ServiceNow MCP proxy disabled (no MCP Server URL or token file)");
 }
 
 // ── Create MCP Server ─────────────────────────────────────────

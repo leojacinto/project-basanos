@@ -21,7 +21,7 @@ import { validateDomainSchema } from "./ontology/schema.js";
 import { loadDomainFromYaml, loadConstraintsFromYaml } from "./loader.js";
 import { generateAgentCard } from "./a2a/types.js";
 import { load as yamlLoad } from "js-yaml";
-import { ServiceNowMCPClient } from "./connectors/servicenow-mcp.js";
+import { ServiceNowMCPClient, parseMCPServerUrl } from "./connectors/servicenow-mcp.js";
 
 // ── Initialize engines (load all YAML domains) ───────────────
 
@@ -205,6 +205,7 @@ app.get("/api/env-config", (_req, res) => {
     hasPassword: !!process.env.SERVICENOW_PASSWORD,
     clientId: process.env.SERVICENOW_CLIENT_ID || "",
     hasClientSecret: !!process.env.SERVICENOW_CLIENT_SECRET,
+    mcpServerUrl: process.env.SERVICENOW_MCP_SERVER_URL || "",
   });
 });
 
@@ -215,16 +216,18 @@ const mcpTokenFile = process.env.SERVICENOW_MCP_TOKEN_FILE
   || resolve(__dirname, "..", ".basanos", "servicenow-mcp-token.json");
 
 // Auto-initialize if env vars exist
-if (process.env.SERVICENOW_INSTANCE_URL && (existsSync(mcpTokenFile) || (process.env.SERVICENOW_CLIENT_ID && process.env.SERVICENOW_CLIENT_SECRET))) {
+const mcpServerUrl = process.env.SERVICENOW_MCP_SERVER_URL;
+if ((mcpServerUrl || process.env.SERVICENOW_INSTANCE_URL) && (existsSync(mcpTokenFile) || (process.env.SERVICENOW_CLIENT_ID && process.env.SERVICENOW_CLIENT_SECRET))) {
   try {
     mcpClient = new ServiceNowMCPClient({
-      instanceUrl: process.env.SERVICENOW_INSTANCE_URL,
-      serverName: process.env.SERVICENOW_MCP_SERVER || "sn_mcp_server_default",
+      mcpServerUrl: mcpServerUrl || undefined,
+      instanceUrl: mcpServerUrl ? undefined : process.env.SERVICENOW_INSTANCE_URL,
+      serverName: mcpServerUrl ? undefined : (process.env.SERVICENOW_MCP_SERVER || "sn_mcp_server_default"),
       tokenFile: mcpTokenFile,
       clientId: process.env.SERVICENOW_CLIENT_ID,
       clientSecret: process.env.SERVICENOW_CLIENT_SECRET,
     });
-    console.log("MCP Proxy client auto-initialized from .env");
+    console.log(`MCP Proxy client auto-initialized: ${mcpClient.getInstanceUrl()} (server: ${mcpClient.getServerName()})`);
   } catch (err) {
     console.log("MCP Proxy client init failed:", String(err));
   }
@@ -248,11 +251,60 @@ app.get("/api/mcp-proxy/status", async (_req, res) => {
   }
 });
 
+app.get("/api/mcp-proxy/servers", async (req, res) => {
+  const instanceUrl = (req.query.instanceUrl as string) || process.env.SERVICENOW_INSTANCE_URL || "";
+  if (!instanceUrl) return res.json({ servers: [] });
+
+  // Try to discover MCP servers on the instance
+  const token = mcpClient?.isConnected() ? undefined : undefined;
+  try {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    // Use existing token if we have one, otherwise try basic auth from env
+    if (mcpClient && mcpClient.isConnected()) {
+      // Reuse the existing client's connection
+    }
+    const authHeader = process.env.SERVICENOW_USERNAME && process.env.SERVICENOW_PASSWORD
+      ? "Basic " + Buffer.from(`${process.env.SERVICENOW_USERNAME}:${process.env.SERVICENOW_PASSWORD}`).toString("base64")
+      : undefined;
+    if (authHeader) headers.Authorization = authHeader;
+
+    const resp = await fetch(
+      `${instanceUrl.replace(/\/$/, "")}/api/now/table/sn_mcp_server_registry?sysparm_fields=sys_id,name,label,short_description&sysparm_limit=20`,
+      { headers }
+    );
+    if (!resp.ok) return res.json({ servers: [], error: `HTTP ${resp.status}` });
+    const data = (await resp.json()) as { result: Array<{ sys_id: string; name: string; label: string; short_description?: string }> };
+    const servers = (data.result || []).map(s => ({
+      name: s.name,
+      label: s.label || s.name,
+      description: s.short_description || "",
+      url: `${instanceUrl.replace(/\/$/, "")}/sncapps/mcp-server/mcp/${s.name}`,
+    }));
+    res.json({ servers });
+  } catch (err) {
+    res.json({ servers: [], error: String(err) });
+  }
+});
+
 app.post("/api/mcp-proxy/connect", express.json(), async (req, res) => {
-  const { instanceUrl, clientId, serverName, useEnvSecret } = req.body;
+  const { clientId, useEnvSecret } = req.body;
+  const mcpUrl = req.body.mcpServerUrl || "";
   const clientSecret = req.body.clientSecret || (useEnvSecret ? process.env.SERVICENOW_CLIENT_SECRET : "");
+
+  // Parse instance URL from the full MCP server URL
+  let instanceUrl: string;
+  let serverName: string;
+  if (mcpUrl && mcpUrl.includes("/sncapps/mcp-server/mcp/")) {
+    const parsed = parseMCPServerUrl(mcpUrl);
+    instanceUrl = parsed.instanceUrl;
+    serverName = parsed.serverName;
+  } else {
+    instanceUrl = mcpUrl || req.body.instanceUrl || "";
+    serverName = req.body.serverName || "sn_mcp_server_default";
+  }
+
   if (!instanceUrl || !clientId || !clientSecret) {
-    return res.status(400).json({ error: "instanceUrl, clientId, and clientSecret are required" });
+    return res.status(400).json({ error: "MCP Server URL, Client ID, and Client Secret are required" });
   }
 
   // Ensure token directory exists
@@ -264,8 +316,9 @@ app.post("/api/mcp-proxy/connect", express.json(), async (req, res) => {
 
   try {
     const client = new ServiceNowMCPClient({
-      instanceUrl,
-      serverName: serverName || "sn_mcp_server_default",
+      mcpServerUrl: (mcpUrl && mcpUrl.includes("/sncapps/mcp-server/mcp/")) ? mcpUrl : undefined,
+      instanceUrl: (mcpUrl && mcpUrl.includes("/sncapps/mcp-server/mcp/")) ? undefined : instanceUrl,
+      serverName: (mcpUrl && mcpUrl.includes("/sncapps/mcp-server/mcp/")) ? undefined : serverName,
       tokenFile: mcpTokenFile,
       clientId,
       clientSecret,
@@ -1390,8 +1443,12 @@ function dashboardHtml(): string {
           <summary style="cursor:pointer;color:var(--accent);font-weight:600;">Configure MCP Connection</summary>
           <div style="margin-top:0.5rem;">
             <div class="form-group">
-              <label>Instance URL</label>
-              <input id="mcp-url" type="text" placeholder="https://your-instance.service-now.com" value="\${envConfig.instanceUrl}" />
+              <label>MCP Server URL <span style="font-size:0.8rem;color:var(--text-secondary);">(from MCP Server Console &gt; Servers &gt; Server URL)</span></label>
+              <div style="display:flex;gap:0.5rem;">
+                <input id="mcp-server-url" type="text" style="flex:1;" placeholder="https://your-instance.service-now.com/sncapps/mcp-server/mcp/sn_mcp_server_default" value="\${envConfig.mcpServerUrl || ''}" />
+                <button class="btn-primary" style="white-space:nowrap;font-size:0.8rem;" onclick="discoverMCPServers()">Discover Servers</button>
+              </div>
+              <div id="mcp-servers-list" style="margin-top:0.5rem;"></div>
             </div>
             <div class="form-group">
               <label>OAuth Client ID <span style="font-size:0.8rem;color:var(--text-secondary);">(from Machine Identity Console)</span></label>
@@ -1400,10 +1457,6 @@ function dashboardHtml(): string {
             <div class="form-group">
               <label>OAuth Client Secret</label>
               <input id="mcp-client-secret" type="password" placeholder="\${envConfig.hasClientSecret ? 'Set in .env' : 'OAuth Client Secret'}" />
-            </div>
-            <div class="form-group">
-              <label>MCP Server Name <span style="font-size:0.8rem;color:var(--text-secondary);">(default: Quickstart Server)</span></label>
-              <input id="mcp-server-name" type="text" placeholder="sn_mcp_server_default" value="sn_mcp_server_default" />
             </div>
             <button class="btn-primary" onclick="connectMCPProxy()">Connect MCP Proxy</button>
             <div id="mcp-connect-result" style="margin-top:0.75rem;"></div>
@@ -1480,19 +1533,49 @@ function dashboardHtml(): string {
   // Auto-load on Connect tab
   setTimeout(loadMCPStatus, 100);
 
+  async function discoverMCPServers() {
+    var listEl = document.getElementById('mcp-servers-list');
+    var urlField = document.getElementById('mcp-server-url');
+    // Extract instance URL from what the user typed (could be full URL or just instance)
+    var raw = urlField.value.trim();
+    var instanceUrl = raw;
+    var mcpIdx = raw.indexOf('/sncapps/mcp-server/mcp/');
+    if (mcpIdx >= 0) instanceUrl = raw.substring(0, mcpIdx);
+    if (!instanceUrl) instanceUrl = document.getElementById('snow-url') ? document.getElementById('snow-url').value : '';
+    if (!instanceUrl) { listEl.innerHTML = '<p style="color:#e74c3c;">Enter an instance URL or MCP Server URL first</p>'; return; }
+    listEl.innerHTML = '<p style="color:var(--text-secondary);">Discovering MCP servers...</p>';
+    try {
+      var res = await fetch('/api/mcp-proxy/servers?instanceUrl=' + encodeURIComponent(instanceUrl));
+      var data = await res.json();
+      if (data.servers && data.servers.length > 0) {
+        listEl.innerHTML = '<p style="font-size:0.85rem;font-weight:600;">Found ' + data.servers.length + ' server(s):</p>' +
+          data.servers.map(function(s) {
+            return '<div style="padding:0.4rem 0.6rem;margin:0.25rem 0;border:1px solid var(--border);border-radius:0.4rem;cursor:pointer;font-size:0.85rem;" onclick="document.getElementById(\\'mcp-server-url\\').value=\\'' + s.url + '\\';document.getElementById(\\'mcp-servers-list\\').innerHTML=\\'<p style=color:var(--success)>Selected: ' + s.label + '</p>\\'">' +
+              '<strong>' + s.label + '</strong> <span style="color:var(--text-secondary);font-size:0.75rem;">' + s.name + '</span>' +
+              (s.description ? '<div style="color:var(--text-secondary);font-size:0.75rem;">' + s.description + '</div>' : '') +
+              '</div>';
+          }).join('');
+      } else {
+        listEl.innerHTML = '<p style="color:#e74c3c;">No MCP servers found' + (data.error ? ' (' + data.error + ')' : '') + '</p>';
+      }
+    } catch (err) {
+      listEl.innerHTML = '<p style="color:#e74c3c;">Discovery failed: ' + err + '</p>';
+    }
+  }
+
   async function connectMCPProxy() {
     var resultEl = document.getElementById('mcp-connect-result');
     resultEl.innerHTML = '<p style="color:var(--text-secondary);">Connecting...</p>';
     try {
       var secretVal = document.getElementById('mcp-client-secret').value;
+      var mcpServerUrl = document.getElementById('mcp-server-url').value.trim();
       var res = await fetch('/api/mcp-proxy/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          instanceUrl: document.getElementById('mcp-url').value,
+          mcpServerUrl: mcpServerUrl,
           clientId: document.getElementById('mcp-client-id').value,
           clientSecret: secretVal || undefined,
-          serverName: document.getElementById('mcp-server-name').value || 'sn_mcp_server_default',
           useEnvSecret: !secretVal,
         }),
       });
