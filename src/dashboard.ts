@@ -1495,8 +1495,22 @@ function dashboardHtml(): string {
     var resolveConstraints = allConstraints.filter(function(c) {
       return c.relevantActions && (c.relevantActions.indexOf('resolve') >= 0 || c.relevantActions.indexOf('close') >= 0);
     });
-    var promoted = resolveConstraints.filter(function(c) { return c.status === 'promoted'; });
-    var candidates = resolveConstraints.filter(function(c) { return c.status === 'candidate'; });
+    // Deduplicate: if an ITSM constraint covers the same pattern as a discovered one, hide the discovered duplicate
+    var itsmIds = resolveConstraints.filter(function(c) { return c.domain === 'itsm'; }).map(function(c) {
+      return c.id.replace('itsm:', '').replace(/_/g, ' ');
+    });
+    var deduped = resolveConstraints.filter(function(c) {
+      if (c.domain === 'itsm') return true;
+      // Check if a similar ITSM constraint exists by matching key terms
+      var cName = (c.name || '').toLowerCase();
+      var dominated = itsmIds.some(function(itsmKey) {
+        var terms = itsmKey.split(' ');
+        return terms.every(function(t) { return cName.indexOf(t) >= 0; });
+      });
+      return !dominated;
+    });
+    var promoted = deduped.filter(function(c) { return c.status === 'promoted'; });
+    var candidates = deduped.filter(function(c) { return c.status === 'candidate'; });
 
     el.innerHTML = '<div style="max-width:900px;margin:0 auto;">' +
 
