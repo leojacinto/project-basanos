@@ -367,6 +367,132 @@ app.get("/api/now/table/sys_properties", (req, res) => {
   res.json({ result: [{ sys_id: "mock_property", name: "mock", value: "true" }] });
 });
 
+// ── Mock OAuth Token Endpoint ──────────────────────────────────
+
+app.post("/oauth_token.do", (_req, res) => {
+  res.json({
+    access_token: "mock_token_" + Date.now(),
+    token_type: "Bearer",
+    expires_in: 3600,
+    scope: "mcp_server",
+  });
+});
+
+// ── Mock MCP Tools API ────────────────────────────────────────
+
+const MCP_TOOLS = [
+  {
+    name: "Look up incident records",
+    description: "Query incident records by various fields.",
+    tool_type: "rest_api",
+    api_endpoint: "/api/sn_mcp_server/mcp_lookup_service/get_records",
+    api_method: "POST",
+    tool_inputs: {
+      status: { type: "string", required: false, description: "Incident state" },
+      priority: { type: "string", required: false, description: "Incident priority" },
+      assigned_to: { type: "string", required: false, description: "Assigned user" },
+      limit: { type: "number", required: false, description: "Max records" },
+    },
+    template: { table: "incident", status: "{{status}}", priority: "{{priority}}", assigned_to: "{{assigned_to}}", limit: "{{limit}}" },
+  },
+  {
+    name: "Incident summarization",
+    description: "Summarize an incident record.",
+    tool_type: "ai_skill",
+    preprocessing_endpoint: "/api/sn_mcp_server/mcp_lookup_service/preprocess_and_execute_skill",
+    tool_inputs: {
+      number: { type: "string", required: true, description: "Incident number" },
+    },
+    template: { payload: { tablename: "incident", sysid: "incident.number" } },
+    config_dict: {},
+  },
+  {
+    name: "Resolve incident",
+    description: "Resolve a ServiceNow incident by setting its state to Resolved. This is a WRITE operation.",
+    tool_type: "rest_api",
+    api_endpoint: "/api/sn_mcp_server/mcp_action_service/resolve_incident",
+    api_method: "POST",
+    tool_inputs: {
+      incident_number: { type: "string", required: true, description: "Incident number (e.g. INC0099001)" },
+      resolution_notes: { type: "string", required: true, description: "Notes describing the resolution" },
+      resolution_code: { type: "string", required: false, description: "Resolution code (Solved, Workaround, Duplicate, etc.)" },
+    },
+    template: { incident_number: "{{incident_number}}", resolution_notes: "{{resolution_notes}}", resolution_code: "{{resolution_code}}" },
+  },
+  {
+    name: "Close incident",
+    description: "Close a resolved incident. This is a WRITE operation.",
+    tool_type: "rest_api",
+    api_endpoint: "/api/sn_mcp_server/mcp_action_service/close_incident",
+    api_method: "POST",
+    tool_inputs: {
+      incident_number: { type: "string", required: true, description: "Incident number" },
+      close_notes: { type: "string", required: true, description: "Closing notes" },
+    },
+    template: { incident_number: "{{incident_number}}", close_notes: "{{close_notes}}" },
+  },
+  {
+    name: "Approve change request",
+    description: "Approve a change request. This is a WRITE operation.",
+    tool_type: "rest_api",
+    api_endpoint: "/api/sn_mcp_server/mcp_action_service/approve_change",
+    api_method: "POST",
+    tool_inputs: {
+      change_number: { type: "string", required: true, description: "Change request number (e.g. CHG0000001)" },
+      approval_notes: { type: "string", required: true, description: "Approval justification" },
+    },
+    template: { change_number: "{{change_number}}", approval_notes: "{{approval_notes}}" },
+  },
+];
+
+// MCP tools list endpoint (mirrors real SN API)
+app.get("/api/sn_mcp_server/mcp_tools_api/tools/server/:serverName", (req, res) => {
+  res.json({ result: { tools: MCP_TOOLS } });
+});
+
+// MCP lookup service (for read tools)
+app.post("/api/sn_mcp_server/mcp_lookup_service/get_records", (req, res) => {
+  const table = req.body.table || "incident";
+  const records = TABLES[table as keyof typeof TABLES] || [];
+  const limit = parseInt(req.body.limit || "10", 10);
+  res.json({ result: { records: records.slice(0, limit), count: records.length, table } });
+});
+
+// MCP AI skill preprocessing (for summarization tools)
+app.post("/api/sn_mcp_server/mcp_lookup_service/preprocess_and_execute_skill", (req, res) => {
+  const number = req.body?.payload?.number || req.body?.number || "unknown";
+  const incident = INCIDENTS.find((i) => i.number === number);
+  if (incident) {
+    res.json({ result: { summary: `${incident.number}: ${incident.short_description} (Priority: ${incident.priority.display_value}, State: ${incident.state.display_value})` } });
+  } else {
+    res.json({ result: { summary: `No incident found with number ${number}` } });
+  }
+});
+
+// MCP action service (for write tools - the ones constraints block)
+app.post("/api/sn_mcp_server/mcp_action_service/:action", (req, res) => {
+  const action = req.params.action;
+  if (action === "resolve_incident") {
+    const inc = INCIDENTS.find((i) => i.number === req.body.incident_number);
+    if (!inc) return res.status(404).json({ error: { message: `Incident ${req.body.incident_number} not found` } });
+    (inc.state as { value: string; display_value: string }).value = "6";
+    (inc.state as { value: string; display_value: string }).display_value = "Resolved";
+    res.json({ result: { success: true, incident: inc.number, new_state: "Resolved", resolution_notes: req.body.resolution_notes } });
+  } else if (action === "close_incident") {
+    const inc = INCIDENTS.find((i) => i.number === req.body.incident_number);
+    if (!inc) return res.status(404).json({ error: { message: `Incident ${req.body.incident_number} not found` } });
+    (inc.state as { value: string; display_value: string }).value = "7";
+    (inc.state as { value: string; display_value: string }).display_value = "Closed";
+    res.json({ result: { success: true, incident: inc.number, new_state: "Closed", close_notes: req.body.close_notes } });
+  } else if (action === "approve_change") {
+    const chg = CHANGES.find((c) => c.number === req.body.change_number);
+    if (!chg) return res.status(404).json({ error: { message: `Change ${req.body.change_number} not found` } });
+    res.json({ result: { success: true, change: chg.number, approval_status: "Approved", notes: req.body.approval_notes } });
+  } else {
+    res.status(400).json({ error: { message: `Unknown action: ${action}` } });
+  }
+});
+
 // ── Root route (browser-friendly status) ──────────────────────
 
 app.get("/", (_req, res) => {
