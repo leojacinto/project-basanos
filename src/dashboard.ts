@@ -1031,11 +1031,15 @@ function dashboardHtml(): string {
     function constraintCard(c) {
       const statusColors = { promoted: 'var(--success)', candidate: 'var(--accent)', disabled: 'var(--text-secondary)' };
       const statusLabels = { promoted: 'ENFORCED', candidate: 'CANDIDATE', disabled: 'DISABLED' };
+      var isDiscovered = c.id.includes(':discovered:');
+      var sourceLabel = isDiscovered ? 'discovered' : 'hand-crafted';
+      var sourceColor = isDiscovered ? 'var(--text-secondary)' : 'var(--accent)';
       return '<div class="card" style="' + (c.status === 'disabled' ? 'opacity:0.6;' : '') + '">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">' +
           '<h2 style="margin:0;">' + c.name +
             ' <span class="badge ' + {block:'badge-block',warn:'badge-warn',info:'badge-info'}[c.severity] + '">' + c.severity.toUpperCase() + '</span>' +
             ' <span style="font-size:0.7rem;padding:2px 8px;border-radius:4px;color:white;background:' + (statusColors[c.status] || 'gray') + ';">' + (statusLabels[c.status] || c.status) + '</span>' +
+            ' <span style="font-size:0.65rem;padding:2px 6px;border-radius:4px;border:1px solid ' + sourceColor + ';color:' + sourceColor + ';">' + sourceLabel + '</span>' +
           '</h2>' +
           '<div style="display:flex;gap:0.5rem;align-items:center;">' +
             '<select onchange="updateSeverity(\\'' + c.id + '\\', this.value)" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--card-bg);color:var(--text-primary);font-size:0.8rem;">' +

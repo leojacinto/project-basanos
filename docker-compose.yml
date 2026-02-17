@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # Demo mode: runs mock ServiceNow + dashboard
+  # Just run: docker compose up
+  # Then open http://localhost:3001
+  basanos:
+    build: .
+    ports:
+      - "3001:3001"    # Dashboard
+      - "8090:8090"    # Mock ServiceNow
+    environment:
+      - SERVICENOW_INSTANCE_URL=${SERVICENOW_INSTANCE_URL:-http://localhost:8090}
+      - SERVICENOW_USERNAME=${SERVICENOW_USERNAME:-admin}
+      - SERVICENOW_PASSWORD=${SERVICENOW_PASSWORD:-admin}
+      - SERVICENOW_CLIENT_ID=${SERVICENOW_CLIENT_ID:-}
+      - SERVICENOW_CLIENT_SECRET=${SERVICENOW_CLIENT_SECRET:-}
+      - MOCK_SNOW_PORT=8090
+    volumes:
+      - basanos-data:/app/domains
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  basanos-data:
+
+networks:
+  default:
+    name: project-basanos-network

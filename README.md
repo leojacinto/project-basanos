@@ -177,7 +177,27 @@ sequenceDiagram
 
 Every answer traces back to a real API call, a real record, a real timestamp. The provenance is baked in.
 
-## Quick Start
+## Quick Start (Docker - no dev tools needed)
+
+```bash
+git clone https://github.com/leojacinto/project-basanos.git
+cd project-basanos
+docker compose up
+```
+
+Open [http://localhost:3001](http://localhost:3001) - that's it. The demo runs a mock ServiceNow instance with sample ITSM data, the full discovery pipeline, and the dashboard.
+
+To connect to a **real ServiceNow instance**, create a `.env` file:
+
+```bash
+SERVICENOW_INSTANCE_URL=https://your-instance.service-now.com
+SERVICENOW_USERNAME=admin
+SERVICENOW_PASSWORD=your-password
+```
+
+Then restart: `docker compose up --build`
+
+## Quick Start (Developer)
 
 ```bash
 git clone https://github.com/leojacinto/project-basanos.git
