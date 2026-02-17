@@ -1,0 +1,95 @@
+# Basanos Discovery Rules
+#
+# These are the heuristic analyzers that Basanos uses to discover
+# constraints from live data. Each rule defines what to query,
+# what threshold to apply, and what constraint to emit.
+#
+# Rules are tagged by connector (servicenow, salesforce, jira, etc.)
+# so enterprises can manage them centrally across platforms.
+#
+# No LLM required. Each rule encodes domain expertise as a
+# deterministic, auditable data pattern check.
+
+rules:
+
+  - id: change_freeze
+    name: Active Change Freeze
+    connector: servicenow
+    severity: block
+    table: change_request
+    query: "stateIN-5,3^ORDERBYDESCsys_created_on"
+    fields: [number, state, start_date, end_date, type]
+    limit: 10
+    threshold: "count > 0"
+    logic: >
+      If any change requests are in a scheduled or on-hold state,
+      there is an active change window. Resolving incidents during
+      a change window risks conflicting with planned changes.
+    output:
+      appliesTo: [incident]
+      relevantActions: [resolve, close, auto_resolve]
+      violationMessage: >
+        An active change freeze is in effect. Escalate to change management.
+      satisfiedMessage: No active change freeze detected.
+
+  - id: p1_reassignment
+    name: P1 Reassignment Caution
+    connector: servicenow
+    severity: warn
+    table: incident
+    query: "priority=1^stateIN1,2,3"
+    fields: [number, priority, state, reassignment_count, assignment_group]
+    limit: 100
+    threshold: "P1 count > 0"
+    logic: >
+      Fetches all active P1 incidents and counts how many have been
+      reassigned. P1 incidents have war rooms, executive visibility,
+      and established escalation chains. Reassignment disrupts all
+      of these and should be done deliberately, not automatically.
+    output:
+      appliesTo: [incident]
+      relevantActions: [reassign]
+      violationMessage: >
+        This is a P1 incident. Confirm with incident commander before reassigning.
+      satisfiedMessage: Standard reassignment procedures apply.
+
+  - id: group_capacity
+    name: Group Capacity Warning
+    connector: servicenow
+    severity: warn
+    table: incident
+    query: "stateIN1,2,3"
+    fields: [assignment_group]
+    limit: 500
+    threshold: "tickets per group > 20"
+    logic: >
+      Groups all active incidents by assignment_group and counts
+      tickets per group. Any group with more than 20 active tickets
+      is flagged as overloaded. Overloaded groups lead to SLA
+      breaches and burnout.
+    output:
+      appliesTo: [incident, problem, change_request]
+      relevantActions: [assign, reassign]
+      violationMessage: >
+        Target group is overloaded. Consider alternative assignment.
+      satisfiedMessage: Group capacity is within acceptable range.
+
+  - id: sla_breach
+    name: SLA Breach Review
+    connector: servicenow
+    severity: warn
+    table: task_sla
+    query: "has_breached=true^taskISNOTEMPTY"
+    fields: [task, sla, has_breached, business_percentage]
+    limit: 100
+    threshold: "count > 0"
+    logic: >
+      Queries the SLA table for breached records. If breached SLAs
+      exist, closing incidents without review is risky because
+      penalty clauses may apply.
+    output:
+      appliesTo: [incident]
+      relevantActions: [close]
+      violationMessage: >
+        This incident breached an SLA. Review required before closing.
+      satisfiedMessage: No SLA breach detected.

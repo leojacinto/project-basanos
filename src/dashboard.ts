@@ -20,6 +20,7 @@ import { ConstraintEngine } from "./constraints/engine.js";
 import { validateDomainSchema } from "./ontology/schema.js";
 import { loadDomainFromYaml, loadConstraintsFromYaml } from "./loader.js";
 import { generateAgentCard } from "./a2a/types.js";
+import { load as yamlLoad } from "js-yaml";
 
 // ── Initialize engines (load all YAML domains) ───────────────
 
@@ -67,6 +68,16 @@ const allConstraints = constraintEngine.getAllConstraints();
 const promotedCount = allConstraints.filter(c => c.status === "promoted").length;
 const candidateCount = allConstraints.filter(c => c.status === "candidate").length;
 console.log(`Loaded ${ontologyEngine.getDomains().length} domain(s), ${allConstraints.length} constraint(s) (${promotedCount} promoted, ${candidateCount} candidates)`);
+
+// ── Load discovery rules YAML ─────────────────────────────────
+
+const discoveryRulesPath = resolve(__dirname, "..", "discovery-rules.yaml");
+let discoveryRules: unknown[] = [];
+if (existsSync(discoveryRulesPath)) {
+  const raw = yamlLoad(readFileSync(discoveryRulesPath, "utf-8")) as { rules: unknown[] };
+  discoveryRules = raw.rules || [];
+  console.log(`Loaded ${discoveryRules.length} discovery rule(s) from discovery-rules.yaml`);
+}
 
 // ── Express API ───────────────────────────────────────────────
 
@@ -141,6 +152,10 @@ app.post("/api/constraints/:id/severity", express.json(), (req, res) => {
   const ok = constraintEngine.updateConstraintSeverity(req.params.id, severityMap[severity]);
   if (!ok) return res.status(404).json({ error: "Constraint not found" });
   res.json({ success: true, id: req.params.id, severity });
+});
+
+app.get("/api/discovery-rules", (_req, res) => {
+  res.json(discoveryRules);
 });
 
 app.get("/api/env-config", (_req, res) => {
@@ -761,7 +776,7 @@ function dashboardHtml(): string {
       case 'agent-card': renderAgentCard(el); break;
       case 'audit': renderAudit(el); break;
       case 'connect': await renderConnect(el); break;
-      case 'discovery-rules': renderDiscoveryRules(el); break;
+      case 'discovery-rules': await renderDiscoveryRules(el); break;
     }
   }
 
@@ -1050,45 +1065,24 @@ function dashboardHtml(): string {
     \`;
   }
 
-  function renderDiscoveryRules(el) {
-    const rules = [
-      {
-        name: 'Active Change Freeze',
-        severity: 'block',
-        table: 'change_request',
-        query: 'stateIN-5,3 (scheduled or on hold)',
-        logic: 'If any change requests are in a scheduled or on-hold state, there is an active change window. Resolving incidents during a change window risks conflicting with planned changes.',
-        threshold: 'count > 0',
-        output: 'Blocks resolve, close, and auto_resolve actions on incidents',
-      },
-      {
-        name: 'P1 Reassignment Caution',
-        severity: 'warn',
-        table: 'incident',
-        query: 'priority=1, stateIN1,2,3 (active P1s)',
-        logic: 'Fetches all active P1 incidents and counts how many have reassignment_count > 0. P1 incidents have war rooms, executive visibility, and established escalation chains. Reassignment disrupts all of these.',
-        threshold: 'P1 count > 0',
-        output: 'Warns on reassign actions for incidents',
-      },
-      {
-        name: 'Group Capacity Warning',
-        severity: 'warn',
-        table: 'incident',
-        query: 'stateIN1,2,3 (all active incidents)',
-        logic: 'Groups all active incidents by assignment_group and counts tickets per group. Overloaded groups lead to SLA breaches and burnout.',
-        threshold: 'tickets per group > 20',
-        output: 'Warns on assign and reassign actions for incidents, problems, and change requests',
-      },
-      {
-        name: 'SLA Breach Review',
-        severity: 'warn',
-        table: 'task_sla',
-        query: 'has_breached=true, taskISNOTEMPTY',
-        logic: 'Queries the SLA table for breached records. If breached SLAs exist, closing incidents without review is risky because penalty clauses may apply.',
-        threshold: 'count > 0',
-        output: 'Warns on close actions for incidents',
-      },
-    ];
+  async function renderDiscoveryRules(el) {
+    el.innerHTML = '<div class="empty-state">Loading discovery rules...</div>';
+    let rules = [];
+    try {
+      const res = await fetch('/api/discovery-rules');
+      rules = await res.json();
+    } catch (e) {
+      el.innerHTML = '<div class="empty-state">Failed to load discovery rules</div>';
+      return;
+    }
+
+    // Group by connector
+    var connectors = {};
+    rules.forEach(function(r) {
+      var c = r.connector || 'unknown';
+      if (!connectors[c]) connectors[c] = [];
+      connectors[c].push(r);
+    });
 
     el.innerHTML =
       '<div class="card">' +
@@ -1102,41 +1096,57 @@ function dashboardHtml(): string {
           '<span class="badge badge-type">Deterministic</span>' +
           '<span class="badge badge-type">Auditable</span>' +
           '<span class="badge badge-type">No LLM required</span>' +
-          '<span class="badge badge-type">Domain expertise encoded</span>' +
+          '<span class="badge badge-type">YAML-defined</span>' +
         '</div>' +
       '</div>' +
-      '<div style="margin-top:0.5rem;">' +
-        '<h3 style="margin:1rem 0 0.5rem;">Analyzers (' + rules.length + ')</h3>' +
-        rules.map(function(r) {
-          var sevClass = {block:'badge-block',warn:'badge-warn',info:'badge-info'}[r.severity] || 'badge-info';
-          return '<div class="card">' +
-            '<h2>' + r.name + ' <span class="badge ' + sevClass + '">' + r.severity.toUpperCase() + '</span></h2>' +
-            '<p style="margin:0.5rem 0;">' + r.logic + '</p>' +
-            '<table style="width:100%;font-size:0.85rem;border-collapse:collapse;margin-top:0.75rem;">' +
-              '<tr style="border-bottom:1px solid var(--border);">' +
-                '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);width:120px;">Table</td>' +
-                '<td style="padding:0.4rem 0.75rem;"><code>' + r.table + '</code></td>' +
-              '</tr>' +
-              '<tr style="border-bottom:1px solid var(--border);">' +
-                '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);">Query filter</td>' +
-                '<td style="padding:0.4rem 0.75rem;"><code>' + r.query + '</code></td>' +
-              '</tr>' +
-              '<tr style="border-bottom:1px solid var(--border);">' +
-                '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);">Threshold</td>' +
-                '<td style="padding:0.4rem 0.75rem;"><code>' + r.threshold + '</code></td>' +
-              '</tr>' +
-              '<tr>' +
-                '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);">Output</td>' +
-                '<td style="padding:0.4rem 0.75rem;">' + r.output + '</td>' +
-              '</tr>' +
-            '</table>' +
-          '</div>';
-        }).join('') +
-      '</div>' +
+      Object.keys(connectors).map(function(connector) {
+        var cRules = connectors[connector];
+        return '<h3 style="margin:1rem 0 0.5rem;text-transform:capitalize;">' +
+          '<span class="badge badge-type" style="font-size:0.8rem;">' + connector + '</span> ' +
+          'Analyzers (' + cRules.length + ')</h3>' +
+          cRules.map(function(r) {
+            var sevClass = {block:'badge-block',warn:'badge-warn',info:'badge-info'}[r.severity] || 'badge-info';
+            var outputText = r.output
+              ? (r.severity === 'block' ? 'Blocks ' : 'Warns on ') +
+                (r.output.relevantActions || []).join(', ') + ' actions for ' +
+                (r.output.appliesTo || []).join(', ')
+              : '';
+            return '<div class="card">' +
+              '<h2>' + r.name +
+                ' <span class="badge ' + sevClass + '">' + r.severity.toUpperCase() + '</span>' +
+                ' <span class="badge badge-type" style="font-size:0.65rem;">' + connector + '</span>' +
+              '</h2>' +
+              '<p style="margin:0.5rem 0;">' + (r.logic || '') + '</p>' +
+              '<table style="width:100%;font-size:0.85rem;border-collapse:collapse;margin-top:0.75rem;">' +
+                '<tr style="border-bottom:1px solid var(--border);">' +
+                  '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);width:120px;">Connector</td>' +
+                  '<td style="padding:0.4rem 0.75rem;"><code>' + connector + '</code></td>' +
+                '</tr>' +
+                '<tr style="border-bottom:1px solid var(--border);">' +
+                  '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);">Table</td>' +
+                  '<td style="padding:0.4rem 0.75rem;"><code>' + r.table + '</code></td>' +
+                '</tr>' +
+                '<tr style="border-bottom:1px solid var(--border);">' +
+                  '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);">Query</td>' +
+                  '<td style="padding:0.4rem 0.75rem;"><code>' + r.query + '</code></td>' +
+                '</tr>' +
+                '<tr style="border-bottom:1px solid var(--border);">' +
+                  '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);">Threshold</td>' +
+                  '<td style="padding:0.4rem 0.75rem;"><code>' + r.threshold + '</code></td>' +
+                '</tr>' +
+                (outputText ? '<tr>' +
+                  '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);">Output</td>' +
+                  '<td style="padding:0.4rem 0.75rem;">' + outputText + '</td>' +
+                '</tr>' : '') +
+              '</table>' +
+            '</div>';
+          }).join('');
+      }).join('') +
       '<div class="card" style="margin-top:0.75rem;border-left:3px solid var(--accent);">' +
         '<p style="font-size:0.9rem;color:var(--text-secondary);">' +
-          '<strong>Adding new analyzers:</strong> Each analyzer is a function in <code>src/connectors/constraint-discovery.ts</code>. ' +
-          'To add a new pattern, write a function that queries a table, applies a threshold, and pushes a constraint object. No ML pipeline needed.' +
+          '<strong>Source:</strong> <code>discovery-rules.yaml</code> at the project root. ' +
+          'Add new analyzers by adding entries to this YAML file, tagged with the appropriate connector. ' +
+          'No code changes needed for new rules.' +
         '</p>' +
       '</div>';
   }
