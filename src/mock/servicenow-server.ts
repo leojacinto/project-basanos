@@ -262,6 +262,22 @@ app.get("/api/now/table/sys_properties", (req, res) => {
   res.json({ result: [{ sys_id: "mock_property", name: "mock", value: "true" }] });
 });
 
+// ── Root route (browser-friendly status) ──────────────────────
+
+app.get("/", (_req, res) => {
+  res.type("html").send(`
+    <html><body style="font-family:system-ui;max-width:600px;margin:2rem auto;color:#333;">
+      <h1>Mock ServiceNow Server</h1>
+      <p style="color:green;font-weight:bold;">&#10003; Running and ready for Basanos</p>
+      <p>This server simulates a ServiceNow REST API. It is consumed by the Basanos CLI pipeline, not by a browser.</p>
+      <h3>Available tables</h3>
+      <ul>${Object.keys(TABLES).map(t => `<li>${t} (${(TABLES[t as keyof typeof TABLES] as unknown[]).length} records)</li>`).join("")}</ul>
+      <h3>How to use</h3>
+      <pre style="background:#f4f4f4;padding:1rem;border-radius:4px;">npm run demo   # runs mock + pipeline + dashboard together</pre>
+    </body></html>
+  `);
+});
+
 // ── Start ─────────────────────────────────────────────────────
 
 const PORT = parseInt(process.env.MOCK_SNOW_PORT || "8090", 10);
