@@ -13,6 +13,9 @@ build/
 # Real ServiceNow instance data (personal, never committed)
 domains/servicenow-live/
 
+# Local constraint overrides (operator promotions/demotions)
+constraint-overrides.json
+
 # IDE
 .vscode/
 .idea/

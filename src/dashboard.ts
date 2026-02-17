@@ -12,7 +12,7 @@ import express from "express";
 import net from "net";
 import { execSync } from "child_process";
 import readline from "readline";
-import { existsSync, readdirSync, readFileSync } from "fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { OntologyEngine } from "./ontology/engine.js";
@@ -62,6 +62,39 @@ if (existsSync(domainsDir)) {
       }
     }
   }
+}
+
+// ── Load and apply constraint overrides (persisted promotions) ──
+
+const overridesPath = resolve(__dirname, "..", "constraint-overrides.json");
+
+interface ConstraintOverride {
+  status?: string;
+  severity?: string;
+}
+
+let constraintOverrides: Record<string, ConstraintOverride> = {};
+if (existsSync(overridesPath)) {
+  try {
+    constraintOverrides = JSON.parse(readFileSync(overridesPath, "utf-8"));
+    let applied = 0;
+    for (const [id, overrides] of Object.entries(constraintOverrides)) {
+      if (overrides.status) {
+        constraintEngine.updateConstraintStatus(id, overrides.status as import("./constraints/types.js").ConstraintStatus);
+        applied++;
+      }
+      if (overrides.severity) {
+        constraintEngine.updateConstraintSeverity(id, overrides.severity as import("./constraints/types.js").ConstraintSeverity);
+      }
+    }
+    console.log(`Applied ${applied} constraint override(s) from constraint-overrides.json`);
+  } catch (e) {
+    console.warn("Could not load constraint-overrides.json:", e);
+  }
+}
+
+function saveOverrides() {
+  writeFileSync(overridesPath, JSON.stringify(constraintOverrides, null, 2), "utf-8");
 }
 
 const allConstraints = constraintEngine.getAllConstraints();
@@ -135,6 +168,9 @@ app.post("/api/constraints/:id/status", express.json(), (req, res) => {
   };
   const ok = constraintEngine.updateConstraintStatus(req.params.id, statusMap[status]);
   if (!ok) return res.status(404).json({ error: "Constraint not found" });
+  if (!constraintOverrides[req.params.id]) constraintOverrides[req.params.id] = {};
+  constraintOverrides[req.params.id].status = status;
+  saveOverrides();
   res.json({ success: true, id: req.params.id, status });
 });
 
@@ -151,6 +187,9 @@ app.post("/api/constraints/:id/severity", express.json(), (req, res) => {
   };
   const ok = constraintEngine.updateConstraintSeverity(req.params.id, severityMap[severity]);
   if (!ok) return res.status(404).json({ error: "Constraint not found" });
+  if (!constraintOverrides[req.params.id]) constraintOverrides[req.params.id] = {};
+  constraintOverrides[req.params.id].severity = severity;
+  saveOverrides();
   res.json({ success: true, id: req.params.id, severity });
 });
 
