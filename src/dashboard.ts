@@ -1080,7 +1080,7 @@ function dashboardHtml(): string {
     btn.disabled = true;
     btn.textContent = 'Running pipeline...';
     log.style.display = 'block';
-    log.textContent = 'Starting full pipeline: import → sync → discover...\n';
+    log.textContent = 'Starting full pipeline: import > sync > discover...\\n';
     status.innerHTML = '<p style="color:var(--text-secondary);">Running pipeline (this may take 30-60 seconds)...</p>';
 
     try {
@@ -1091,19 +1091,19 @@ function dashboardHtml(): string {
       });
       const data = await res.json();
       if (data.success) {
-        log.textContent += '\n✅ Schema Import:\n';
-        log.textContent += '   Tables: ' + data.import.tables + '\n';
-        log.textContent += '   Fields: ' + data.import.fields + '\n';
-        log.textContent += '   Relationships: ' + data.import.relationships + '\n';
-        log.textContent += '\n✅ Entity Sync:\n';
-        log.textContent += '   Entities synced: ' + data.sync.entities + '\n';
-        log.textContent += '   Errors: ' + data.sync.errors + '\n';
-        log.textContent += '\n✅ Constraint Discovery:\n';
-        log.textContent += '   Constraints found: ' + data.discovery.constraints + '\n';
+        log.textContent += '\\nSchema Import:\\n';
+        log.textContent += '   Tables: ' + data.import.tables + '\\n';
+        log.textContent += '   Fields: ' + data.import.fields + '\\n';
+        log.textContent += '   Relationships: ' + data.import.relationships + '\\n';
+        log.textContent += '\\nEntity Sync:\\n';
+        log.textContent += '   Entities synced: ' + data.sync.entities + '\\n';
+        log.textContent += '   Errors: ' + data.sync.errors + '\\n';
+        log.textContent += '\\nConstraint Discovery:\\n';
+        log.textContent += '   Constraints found: ' + data.discovery.constraints + '\\n';
         data.discovery.evidence.forEach(e => {
-          log.textContent += '   [' + e.severity + '] ' + e.name + ' - ' + e.evidence + '\n';
+          log.textContent += '   [' + e.severity + '] ' + e.name + ' - ' + e.evidence + '\\n';
         });
-        log.textContent += '\nPipeline complete. Switch domains in the dropdown to explore.';
+        log.textContent += '\\nPipeline complete. Switch domains in the dropdown to explore.';
         status.innerHTML = '<p><span class="status-dot status-connected"></span> <strong>Pipeline complete!</strong> Imported ' + data.import.tables + ' tables, synced ' + data.sync.entities + ' entities, discovered ' + data.discovery.constraints + ' constraints.</p>';
 
         // Refresh domain list
