@@ -665,6 +665,7 @@ function dashboardHtml(): string {
     <button onclick="showTab('agent-card')">Agent Card</button>
     <button onclick="showTab('audit')">Audit Trail</button>
     <button onclick="showTab('connect')">Connect</button>
+    <button onclick="showTab('discovery-rules')" style="margin-left:auto;">Discovery Rules</button>
   </nav>
   <main>
     <div id="content">
@@ -749,7 +750,7 @@ function dashboardHtml(): string {
   async function showTab(tab) {
     currentTab = tab;
     document.querySelectorAll('nav button').forEach((b, i) => {
-      const tabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit', 'connect'];
+      const tabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit', 'connect', 'discovery-rules'];
       b.classList.toggle('active', tabs[i] === tab);
     });
     const el = document.getElementById('content');
@@ -760,6 +761,7 @@ function dashboardHtml(): string {
       case 'agent-card': renderAgentCard(el); break;
       case 'audit': renderAudit(el); break;
       case 'connect': await renderConnect(el); break;
+      case 'discovery-rules': renderDiscoveryRules(el); break;
     }
   }
 
@@ -1046,6 +1048,97 @@ function dashboardHtml(): string {
         \`).join('')
       }
     \`;
+  }
+
+  function renderDiscoveryRules(el) {
+    const rules = [
+      {
+        name: 'Active Change Freeze',
+        severity: 'block',
+        table: 'change_request',
+        query: 'stateIN-5,3 (scheduled or on hold)',
+        logic: 'If any change requests are in a scheduled or on-hold state, there is an active change window. Resolving incidents during a change window risks conflicting with planned changes.',
+        threshold: 'count > 0',
+        output: 'Blocks resolve, close, and auto_resolve actions on incidents',
+      },
+      {
+        name: 'P1 Reassignment Caution',
+        severity: 'warn',
+        table: 'incident',
+        query: 'priority=1, stateIN1,2,3 (active P1s)',
+        logic: 'Fetches all active P1 incidents and counts how many have reassignment_count > 0. P1 incidents have war rooms, executive visibility, and established escalation chains. Reassignment disrupts all of these.',
+        threshold: 'P1 count > 0',
+        output: 'Warns on reassign actions for incidents',
+      },
+      {
+        name: 'Group Capacity Warning',
+        severity: 'warn',
+        table: 'incident',
+        query: 'stateIN1,2,3 (all active incidents)',
+        logic: 'Groups all active incidents by assignment_group and counts tickets per group. Overloaded groups lead to SLA breaches and burnout.',
+        threshold: 'tickets per group > 20',
+        output: 'Warns on assign and reassign actions for incidents, problems, and change requests',
+      },
+      {
+        name: 'SLA Breach Review',
+        severity: 'warn',
+        table: 'task_sla',
+        query: 'has_breached=true, taskISNOTEMPTY',
+        logic: 'Queries the SLA table for breached records. If breached SLAs exist, closing incidents without review is risky because penalty clauses may apply.',
+        threshold: 'count > 0',
+        output: 'Warns on close actions for incidents',
+      },
+    ];
+
+    el.innerHTML =
+      '<div class="card">' +
+        '<h2>How Basanos Discovers Constraints</h2>' +
+        '<p style="color:var(--text-secondary);margin-bottom:1rem;">' +
+          'Basanos uses coded heuristics, not LLMs, to analyze live data from your system of record. ' +
+          'Each analyzer queries a specific table, applies a threshold, and emits a candidate constraint with evidence. ' +
+          'No embeddings, no vectors, no inference. The intelligence is in knowing <em>what to look for</em>.' +
+        '</p>' +
+        '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">' +
+          '<span class="badge badge-type">Deterministic</span>' +
+          '<span class="badge badge-type">Auditable</span>' +
+          '<span class="badge badge-type">No LLM required</span>' +
+          '<span class="badge badge-type">Domain expertise encoded</span>' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:0.5rem;">' +
+        '<h3 style="margin:1rem 0 0.5rem;">Analyzers (' + rules.length + ')</h3>' +
+        rules.map(function(r) {
+          var sevClass = {block:'badge-block',warn:'badge-warn',info:'badge-info'}[r.severity] || 'badge-info';
+          return '<div class="card">' +
+            '<h2>' + r.name + ' <span class="badge ' + sevClass + '">' + r.severity.toUpperCase() + '</span></h2>' +
+            '<p style="margin:0.5rem 0;">' + r.logic + '</p>' +
+            '<table style="width:100%;font-size:0.85rem;border-collapse:collapse;margin-top:0.75rem;">' +
+              '<tr style="border-bottom:1px solid var(--border);">' +
+                '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);width:120px;">Table</td>' +
+                '<td style="padding:0.4rem 0.75rem;"><code>' + r.table + '</code></td>' +
+              '</tr>' +
+              '<tr style="border-bottom:1px solid var(--border);">' +
+                '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);">Query filter</td>' +
+                '<td style="padding:0.4rem 0.75rem;"><code>' + r.query + '</code></td>' +
+              '</tr>' +
+              '<tr style="border-bottom:1px solid var(--border);">' +
+                '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);">Threshold</td>' +
+                '<td style="padding:0.4rem 0.75rem;"><code>' + r.threshold + '</code></td>' +
+              '</tr>' +
+              '<tr>' +
+                '<td style="padding:0.4rem 0.75rem;font-weight:600;color:var(--text-secondary);">Output</td>' +
+                '<td style="padding:0.4rem 0.75rem;">' + r.output + '</td>' +
+              '</tr>' +
+            '</table>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+      '<div class="card" style="margin-top:0.75rem;border-left:3px solid var(--accent);">' +
+        '<p style="font-size:0.9rem;color:var(--text-secondary);">' +
+          '<strong>Adding new analyzers:</strong> Each analyzer is a function in <code>src/connectors/constraint-discovery.ts</code>. ' +
+          'To add a new pattern, write a function that queries a table, applies a threshold, and pushes a constraint object. No ML pipeline needed.' +
+        '</p>' +
+      '</div>';
   }
 
   async function renderConnect(el) {

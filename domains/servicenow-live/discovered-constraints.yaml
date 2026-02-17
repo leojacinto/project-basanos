@@ -1,5 +1,5 @@
 constraints:
-  - id: discovered:change_freeze
+  - id: servicenow-live:discovered:change_freeze
     name: Active Change Freeze (Discovered)
     domain: servicenow-live
     appliesTo:
@@ -9,13 +9,14 @@ constraints:
       - close
       - auto_resolve
     severity: block
+    status: candidate
     description: >-
       Found 10 recent change requests. Incident resolution during active change windows should be blocked. [Evidence: 10
       change requests found in recent history]
     conditions: []
     violationMessage: An active change freeze is in effect. Escalate to change management.
     satisfiedMessage: No active change freeze detected.
-  - id: discovered:p1_reassignment
+  - id: servicenow-live:discovered:p1_reassignment
     name: P1 Reassignment Caution (Discovered)
     domain: servicenow-live
     appliesTo:
@@ -23,13 +24,14 @@ constraints:
     relevantActions:
       - reassign
     severity: warn
+    status: candidate
     description: >-
       0% of active P1 incidents have been reassigned. P1 reassignment disrupts war rooms and escalation chains.
       [Evidence: 50 active P1s, 0 reassigned (0% rate)]
     conditions: []
     violationMessage: This is a P1 incident. Confirm with incident commander before reassigning.
     satisfiedMessage: Standard reassignment procedures apply.
-  - id: discovered:group_capacity
+  - id: servicenow-live:discovered:group_capacity
     name: Group Capacity Warning (Discovered)
     domain: servicenow-live
     appliesTo:
@@ -40,13 +42,14 @@ constraints:
       - assign
       - reassign
     severity: warn
+    status: candidate
     description: >-
       2 groups have >20 active tickets. Highest: "Powerkart Support" with 305 tickets. Overloaded groups lead to SLA
       breaches. [Evidence: 2 overloaded groups, max: Powerkart Support (305 tickets)]
     conditions: []
     violationMessage: Target group is overloaded. Consider alternative assignment.
     satisfiedMessage: Group capacity is within acceptable range.
-  - id: discovered:sla_breach
+  - id: servicenow-live:discovered:sla_breach
     name: SLA Breach Review (Discovered)
     domain: servicenow-live
     appliesTo:
@@ -54,6 +57,7 @@ constraints:
     relevantActions:
       - close
     severity: warn
+    status: candidate
     description: >-
       Found 100 breached SLA records. Incidents with breached SLAs should be reviewed before closure. [Evidence: 100
       breached SLA records found]
