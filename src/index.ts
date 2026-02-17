@@ -25,6 +25,10 @@ import { loadDomainFromYaml, loadConstraintsFromYaml } from "./loader.js";
 
 import { readResource } from "./server/resources.js";
 import { generateAgentCard } from "./a2a/types.js";
+import { ServiceNowMCPClient } from "./connectors/servicenow-mcp.js";
+import { config as dotenvConfig } from "dotenv";
+
+dotenvConfig();
 
 // ── Initialize engines ────────────────────────────────────────
 
@@ -87,6 +91,28 @@ if (domainsLoaded === 0) {
 }
 
 console.error(`Loaded ${domainsLoaded} domain(s), ${constraintsLoaded} constraint(s)`);
+
+// ── Initialize ServiceNow MCP Client (if configured) ────────
+
+let snMCPClient: ServiceNowMCPClient | null = null;
+const snInstanceUrl = process.env.SERVICENOW_INSTANCE_URL;
+const snTokenFile = process.env.SERVICENOW_MCP_TOKEN_FILE || `${process.env.HOME}/.claude/servicenow-tokens.json`;
+const snServerName = process.env.SERVICENOW_MCP_SERVER || "sn_mcp_server_default";
+const snClientId = process.env.SERVICENOW_CLIENT_ID;
+const snClientSecret = process.env.SERVICENOW_CLIENT_SECRET;
+
+if (snInstanceUrl && existsSync(snTokenFile)) {
+  snMCPClient = new ServiceNowMCPClient({
+    instanceUrl: snInstanceUrl,
+    serverName: snServerName,
+    tokenFile: snTokenFile,
+    clientId: snClientId,
+    clientSecret: snClientSecret,
+  });
+  console.error(`ServiceNow MCP Client initialized: ${snInstanceUrl} (server: ${snServerName})`);
+} else {
+  console.error("ServiceNow MCP proxy disabled (no instance URL or token file)");
+}
 
 // ── Create MCP Server ─────────────────────────────────────────
 
@@ -317,9 +343,152 @@ server.tool(
   }
 );
 
+// ── Register Proxied ServiceNow MCP Tools ────────────────────
+
+/**
+ * Derive an action name from a ServiceNow MCP tool name.
+ * This maps tool names to constraint-relevant actions.
+ */
+function deriveAction(toolName: string): string {
+  const lower = toolName.toLowerCase();
+  if (lower.includes("look up") || lower.includes("lookup") || lower.includes("get")) return "lookup";
+  if (lower.includes("summariz")) return "summarize";
+  if (lower.includes("resolve")) return "resolve";
+  if (lower.includes("close")) return "close";
+  if (lower.includes("assign")) return "assign";
+  if (lower.includes("approve")) return "approve";
+  if (lower.includes("create")) return "create";
+  if (lower.includes("update")) return "update";
+  if (lower.includes("delete")) return "delete";
+  return lower.replace(/\s+/g, "_");
+}
+
+async function registerProxiedTools() {
+  if (!snMCPClient) return;
+
+  try {
+    const tools = await snMCPClient.fetchTools();
+    console.error(`Registering ${tools.length} proxied ServiceNow MCP tools...`);
+
+    for (const tool of tools) {
+      const safeName = "sn_" + tool.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+$/, "");
+      const action = deriveAction(tool.name);
+
+      // Build zod schema from tool inputs
+      const schemaFields: Record<string, z.ZodTypeAny> = {};
+      for (const [inputName, inputDef] of Object.entries(tool.tool_inputs || {})) {
+        let field: z.ZodTypeAny;
+        if (inputDef.type === "number") {
+          field = z.number().describe(inputDef.description || inputName);
+        } else {
+          field = z.string().describe(inputDef.description || inputName);
+        }
+        schemaFields[inputName] = inputDef.required ? field : field.optional();
+      }
+
+      // Add optional constraint context fields
+      schemaFields["_target_entity"] = z.string().optional().describe(
+        "Target entity ID for constraint checking (e.g., servicenow-live:incident:INC001)"
+      );
+
+      const description =
+        `[Proxied from ServiceNow] ${tool.description || tool.name}\n\n` +
+        `Basanos enforces promoted constraints before forwarding this call to ServiceNow. ` +
+        `If a constraint blocks the action, the call will NOT reach ServiceNow.`;
+
+      server.tool(
+        safeName,
+        description.substring(0, 1024),
+        schemaFields,
+        async (args: Record<string, unknown>) => {
+          const targetEntity = (args._target_entity as string) || `servicenow:unknown:unknown`;
+          // Remove internal fields before forwarding
+          const snArgs = { ...args };
+          delete snArgs._target_entity;
+
+          // Check constraints before forwarding
+          const verdict = await constraintEngine.evaluate({
+            intendedAction: action,
+            targetEntity,
+            relatedEntities: [],
+            timestamp: new Date(),
+            metadata: { tool_name: tool.name, tool_type: tool.tool_type, ...snArgs },
+          });
+
+          if (!verdict.allowed) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: JSON.stringify({
+                    blocked: true,
+                    tool: tool.name,
+                    action,
+                    verdict: {
+                      allowed: false,
+                      summary: verdict.summary,
+                      results: verdict.results,
+                      evaluatedAt: verdict.evaluatedAt,
+                    },
+                    message: "This action was BLOCKED by Basanos constraints. The call was NOT forwarded to ServiceNow.",
+                  }, null, 2),
+                },
+              ],
+            };
+          }
+
+          // Constraints passed - forward to ServiceNow
+          try {
+            const result = await snMCPClient!.executeTool(tool.name, snArgs);
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: JSON.stringify({
+                    blocked: false,
+                    tool: tool.name,
+                    action,
+                    constraintVerdict: {
+                      allowed: true,
+                      summary: verdict.summary,
+                      evaluatedAt: verdict.evaluatedAt,
+                    },
+                    result,
+                  }, null, 2),
+                },
+              ],
+            };
+          } catch (err) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: JSON.stringify({
+                    error: true,
+                    tool: tool.name,
+                    message: `ServiceNow MCP call failed: ${String(err)}`,
+                    constraintVerdict: { allowed: true, summary: verdict.summary },
+                  }, null, 2),
+                },
+              ],
+            };
+          }
+        }
+      );
+
+      console.error(`  Registered: ${safeName} (action: ${action}, type: ${tool.tool_type})`);
+    }
+  } catch (err) {
+    console.error("Failed to register proxied ServiceNow MCP tools:", String(err));
+  }
+}
+
 // ── Start Server ──────────────────────────────────────────────
 
 async function main() {
+  // Register proxied SN MCP tools before connecting
+  await registerProxiedTools();
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("Basanos MCP server running on stdio");

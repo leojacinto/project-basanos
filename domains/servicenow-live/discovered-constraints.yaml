@@ -91,8 +91,8 @@ constraints:
     severity: warn
     status: candidate
     description: >-
-      Found 23 resolved/closed P1 incidents without a linked problem record. Major incidents should trigger problem
-      management for root cause analysis. [Evidence: 23 resolved P1s without problem records]
+      Found 24 resolved/closed P1 incidents without a linked problem record. Major incidents should trigger problem
+      management for root cause analysis. [Evidence: 24 resolved P1s without problem records]
     conditions: []
     violationMessage: This major incident has no linked problem record. Create a problem for root cause analysis.
     satisfiedMessage: Problem record exists for root cause tracking.
