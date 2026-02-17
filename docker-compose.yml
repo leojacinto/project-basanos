@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Demo mode: runs mock ServiceNow + dashboard
   # Just run: docker compose up
