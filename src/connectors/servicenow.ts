@@ -7,10 +7,17 @@
  * build on top of.
  */
 
+export type AuthMode = "basic" | "oauth_client_credentials" | "oauth_password";
+
 export interface ServiceNowConfig {
   instanceUrl: string;
-  username: string;
-  password: string;
+  authMode: AuthMode;
+  // Basic auth
+  username?: string;
+  password?: string;
+  // OAuth
+  clientId?: string;
+  clientSecret?: string;
 }
 
 export interface ServiceNowRecord {
@@ -36,13 +43,64 @@ export interface DictionaryEntry {
 
 export class ServiceNowConnector {
   private config: ServiceNowConfig;
-  private authHeader: string;
+  private cachedToken: string | null = null;
+  private tokenExpiry: number = 0;
 
   constructor(config: ServiceNowConfig) {
     this.config = config;
-    this.authHeader =
-      "Basic " +
-      Buffer.from(`${config.username}:${config.password}`).toString("base64");
+  }
+
+  /**
+   * Get the Authorization header value, fetching/refreshing OAuth tokens as needed.
+   */
+  private async getAuthHeader(): Promise<string> {
+    if (this.config.authMode === "basic") {
+      return (
+        "Basic " +
+        Buffer.from(`${this.config.username}:${this.config.password}`).toString("base64")
+      );
+    }
+
+    // OAuth: return cached token if still valid (with 60s buffer)
+    if (this.cachedToken && Date.now() < this.tokenExpiry - 60_000) {
+      return `Bearer ${this.cachedToken}`;
+    }
+
+    // Fetch a new token
+    const tokenUrl = new URL("/oauth_token.do", this.config.instanceUrl);
+    const body = new URLSearchParams();
+    body.set("client_id", this.config.clientId || "");
+    body.set("client_secret", this.config.clientSecret || "");
+
+    if (this.config.authMode === "oauth_password") {
+      body.set("grant_type", "password");
+      body.set("username", this.config.username || "");
+      body.set("password", this.config.password || "");
+    } else {
+      body.set("grant_type", "client_credentials");
+    }
+
+    const response = await fetch(tokenUrl.toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`OAuth token request failed (${response.status}): ${text.substring(0, 200)}`);
+    }
+
+    const data = (await response.json()) as {
+      access_token: string;
+      expires_in: number;
+      token_type: string;
+    };
+
+    this.cachedToken = data.access_token;
+    this.tokenExpiry = Date.now() + data.expires_in * 1000;
+
+    return `Bearer ${this.cachedToken}`;
   }
 
   getInstanceUrl(): string {
@@ -63,10 +121,11 @@ export class ServiceNowConnector {
       }
     }
 
+    const authHeader = await this.getAuthHeader();
     const response = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        Authorization: this.authHeader,
+        Authorization: authHeader,
         Accept: "application/json",
         "Content-Type": "application/json",
       },
@@ -226,15 +285,40 @@ export class ServiceNowConnector {
 
 /**
  * Create a connector from environment variables.
+ * Detects auth mode automatically:
+ *   - If SERVICENOW_CLIENT_ID is set without username/password: client_credentials
+ *   - If SERVICENOW_CLIENT_ID is set with username/password: oauth_password
+ *   - Otherwise: basic auth
  */
 export function createConnectorFromEnv(): ServiceNowConnector | null {
   const instanceUrl = process.env.SERVICENOW_INSTANCE_URL;
+  if (!instanceUrl) return null;
+
   const username = process.env.SERVICENOW_USERNAME;
   const password = process.env.SERVICENOW_PASSWORD;
+  const clientId = process.env.SERVICENOW_CLIENT_ID;
+  const clientSecret = process.env.SERVICENOW_CLIENT_SECRET;
 
-  if (!instanceUrl || !username || !password) {
+  let authMode: AuthMode;
+
+  if (clientId && clientSecret && username && password) {
+    authMode = "oauth_password";
+  } else if (clientId && clientSecret) {
+    authMode = "oauth_client_credentials";
+  } else if (username && password) {
+    authMode = "basic";
+  } else {
     return null;
   }
 
-  return new ServiceNowConnector({ instanceUrl, username, password });
+  console.log(`  Auth mode: ${authMode}`);
+
+  return new ServiceNowConnector({
+    instanceUrl,
+    authMode,
+    username,
+    password,
+    clientId,
+    clientSecret,
+  });
 }

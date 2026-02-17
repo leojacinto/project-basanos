@@ -285,6 +285,39 @@ ITSM is the first domain because the relationships are rich, the business rules 
 | **A2A** (Agent2Agent) | Horizontal: agent ↔ agent | 🔜 Planned |
 | **ACP** (Agent Communication Protocol) | Lightweight REST messaging | 🔜 Planned |
 
+## Security & Authentication
+
+### Basanos is not MCP-on-MCP
+
+ServiceNow ships its own MCP server for live data access (reads, writes, OAuth-scoped). Basanos does not wrap or replace it. The two serve different purposes and run side by side:
+
+| | ServiceNow MCP | Basanos MCP |
+|---|---|---|
+| **Purpose** | Live CRUD on tables | Domain knowledge, relationships, constraint verdicts |
+| **Connection** | Real-time, every request | Import-time only, then fully offline |
+| **Auth** | OAuth per request | OAuth or basic at import, none at query time |
+
+An agent uses **both**: ServiceNow MCP to read/write records, Basanos MCP to understand what those records mean and whether an action is safe.
+
+### Auth modes
+
+The connector auto-detects which mode to use based on your `.env`:
+
+| Variables set | Auth mode | When to use |
+|---|---|---|
+| `CLIENT_ID` + `CLIENT_SECRET` | OAuth client_credentials | Production, service accounts |
+| `CLIENT_ID` + `CLIENT_SECRET` + `USERNAME` + `PASSWORD` | OAuth password grant | When you need user context with OAuth |
+| `USERNAME` + `PASSWORD` only | Basic auth | Dev, mock server, quick testing |
+
+**OAuth setup in ServiceNow:** System OAuth > Application Registry > Create an OAuth API endpoint. Scope the app to read-only on the tables you need (sys_dictionary, incident, cmdb_ci, etc.).
+
+### What to know about security
+
+- **Read-only.** Basanos never writes back to ServiceNow. There is no mutation path.
+- **Import-time only.** Credentials are used during the import step. After that, Basanos serves from local YAML with zero connection to ServiceNow.
+- **Data at rest.** The generated `ontology.yaml` and `provenance.json` contain table structures, field names, and record counts. Not credentials, but structural metadata. Treat these files accordingly in sensitive environments.
+- **Credentials in `.env`.** The `.env` file is gitignored. For production, use OAuth with scoped, read-only service accounts.
+
 ## Landscape & Prior Art
 
 The problem is well-identified. Anthropic calls it "context engineering" ([Building Effective Agents](https://www.anthropic.com/research/building-effective-agents)). Everyone agrees agents need structured domain knowledge. The gap is that nobody has shipped an open tool for it.

@@ -50,7 +50,9 @@ async function main() {
   const connector = createConnectorFromEnv();
   if (!connector) {
     console.error("❌ Missing ServiceNow configuration.");
-    console.error("   Set SERVICENOW_INSTANCE_URL, SERVICENOW_USERNAME, SERVICENOW_PASSWORD in .env");
+    console.error("   Set SERVICENOW_INSTANCE_URL and either:");
+    console.error("     OAuth: SERVICENOW_CLIENT_ID + SERVICENOW_CLIENT_SECRET");
+    console.error("     Basic: SERVICENOW_USERNAME + SERVICENOW_PASSWORD");
     process.exit(1);
   }
 

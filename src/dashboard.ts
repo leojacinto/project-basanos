@@ -141,24 +141,28 @@ app.get("/api/provenance", (_req, res) => {
 });
 
 app.post("/api/connect", async (req, res) => {
-  const { instanceUrl, username, password } = req.body;
-  if (!instanceUrl || !username || !password) {
-    return res.status(400).json({ error: "Missing instanceUrl, username, or password" });
+  const { instanceUrl, username, password, clientId, clientSecret } = req.body;
+  if (!instanceUrl) {
+    return res.status(400).json({ error: "Missing instanceUrl" });
   }
   try {
     const { ServiceNowConnector } = await import("./connectors/servicenow.js");
-    const connector = new ServiceNowConnector({ instanceUrl, username, password });
+    type AuthMode = "basic" | "oauth_client_credentials" | "oauth_password";
+    let authMode: AuthMode = "basic";
+    if (clientId && clientSecret && username && password) authMode = "oauth_password";
+    else if (clientId && clientSecret) authMode = "oauth_client_credentials";
+    const connector = new ServiceNowConnector({ instanceUrl, authMode, username, password, clientId, clientSecret });
     const result = await connector.testConnection();
-    res.json(result);
+    res.json({ ...result, authMode });
   } catch (err) {
     res.json({ success: false, message: String(err) });
   }
 });
 
 app.post("/api/import", async (req, res) => {
-  const { instanceUrl, username, password, tables } = req.body;
-  if (!instanceUrl || !username || !password) {
-    return res.status(400).json({ error: "Missing credentials" });
+  const { instanceUrl, username, password, clientId, clientSecret, tables } = req.body;
+  if (!instanceUrl) {
+    return res.status(400).json({ error: "Missing instanceUrl" });
   }
   try {
     const { ServiceNowConnector } = await import("./connectors/servicenow.js");
@@ -166,7 +170,11 @@ app.post("/api/import", async (req, res) => {
     const { syncAllTables } = await import("./connectors/entity-sync.js");
     const { discoverConstraints } = await import("./connectors/constraint-discovery.js");
 
-    const connector = new ServiceNowConnector({ instanceUrl, username, password });
+    type AuthMode = "basic" | "oauth_client_credentials" | "oauth_password";
+    let authMode: AuthMode = "basic";
+    if (clientId && clientSecret && username && password) authMode = "oauth_password";
+    else if (clientId && clientSecret) authMode = "oauth_client_credentials";
+    const connector = new ServiceNowConnector({ instanceUrl, authMode, username, password, clientId, clientSecret });
     const importTables = tables || ["incident", "cmdb_ci", "cmdb_ci_service", "change_request", "problem", "sys_user_group"];
     const outputDir = resolve(domainsDir, "servicenow-live");
 
@@ -894,8 +902,22 @@ function dashboardHtml(): string {
           <label>Instance URL</label>
           <input id="snow-url" type="text" placeholder="https://your-instance.service-now.com" />
         </div>
+        <details style="margin-bottom:0.75rem;">
+          <summary style="cursor:pointer;color:var(--accent);font-weight:600;">OAuth (recommended for production)</summary>
+          <div style="margin-top:0.5rem;">
+            <div class="form-group">
+              <label>Client ID</label>
+              <input id="snow-client-id" type="text" placeholder="OAuth Client ID" />
+            </div>
+            <div class="form-group">
+              <label>Client Secret</label>
+              <input id="snow-client-secret" type="password" placeholder="OAuth Client Secret" />
+            </div>
+            <p style="font-size:0.8rem;color:var(--text-secondary);">Set up in ServiceNow: System OAuth &gt; Application Registry. If provided without username/password, uses client_credentials grant.</p>
+          </div>
+        </details>
         <div class="form-group">
-          <label>Username</label>
+          <label>Username <span style="font-size:0.8rem;color:var(--text-secondary);">(required for basic auth or OAuth password grant)</span></label>
           <input id="snow-user" type="text" placeholder="admin" />
         </div>
         <div class="form-group">
@@ -940,10 +962,18 @@ function dashboardHtml(): string {
     \`;
   }
 
+  function getCredentials() {
+    return {
+      instanceUrl: document.getElementById('snow-url').value,
+      username: document.getElementById('snow-user').value || undefined,
+      password: document.getElementById('snow-pass').value || undefined,
+      clientId: document.getElementById('snow-client-id').value || undefined,
+      clientSecret: document.getElementById('snow-client-secret').value || undefined,
+    };
+  }
+
   async function testConnection() {
-    const url = document.getElementById('snow-url').value;
-    const user = document.getElementById('snow-user').value;
-    const pass = document.getElementById('snow-pass').value;
+    const creds = getCredentials();
     const status = document.getElementById('connect-status');
     status.innerHTML = '<p style="color:var(--text-secondary);">Testing connection...</p>';
 
@@ -951,11 +981,11 @@ function dashboardHtml(): string {
       const res = await fetch('/api/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instanceUrl: url, username: user, password: pass }),
+        body: JSON.stringify(creds),
       });
       const data = await res.json();
       if (data.success) {
-        status.innerHTML = '<p><span class="status-dot status-connected"></span> <strong>Connected:</strong> ' + data.message + '</p>';
+        status.innerHTML = '<p><span class="status-dot status-connected"></span> <strong>Connected</strong> (' + data.authMode + '): ' + data.message + '</p>';
         document.getElementById('btn-import').disabled = false;
       } else {
         status.innerHTML = '<p><span class="status-dot status-disconnected"></span> <strong>Failed:</strong> ' + data.message + '</p>';
@@ -966,9 +996,7 @@ function dashboardHtml(): string {
   }
 
   async function runImport() {
-    const url = document.getElementById('snow-url').value;
-    const user = document.getElementById('snow-user').value;
-    const pass = document.getElementById('snow-pass').value;
+    const creds = getCredentials();
     const status = document.getElementById('connect-status');
     const log = document.getElementById('connect-log');
     const btn = document.getElementById('btn-import');
@@ -976,30 +1004,30 @@ function dashboardHtml(): string {
     btn.disabled = true;
     btn.textContent = 'Running pipeline...';
     log.style.display = 'block';
-    log.textContent = 'Starting full pipeline: import → sync → discover...\\n';
+    log.textContent = 'Starting full pipeline: import → sync → discover...\n';
     status.innerHTML = '<p style="color:var(--text-secondary);">Running pipeline (this may take 30-60 seconds)...</p>';
 
     try {
       const res = await fetch('/api/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instanceUrl: url, username: user, password: pass }),
+        body: JSON.stringify(creds),
       });
       const data = await res.json();
       if (data.success) {
-        log.textContent += '\\n✅ Schema Import:\\n';
-        log.textContent += '   Tables: ' + data.import.tables + '\\n';
-        log.textContent += '   Fields: ' + data.import.fields + '\\n';
-        log.textContent += '   Relationships: ' + data.import.relationships + '\\n';
-        log.textContent += '\\n✅ Entity Sync:\\n';
-        log.textContent += '   Entities synced: ' + data.sync.entities + '\\n';
-        log.textContent += '   Errors: ' + data.sync.errors + '\\n';
-        log.textContent += '\\n✅ Constraint Discovery:\\n';
-        log.textContent += '   Constraints found: ' + data.discovery.constraints + '\\n';
+        log.textContent += '\n✅ Schema Import:\n';
+        log.textContent += '   Tables: ' + data.import.tables + '\n';
+        log.textContent += '   Fields: ' + data.import.fields + '\n';
+        log.textContent += '   Relationships: ' + data.import.relationships + '\n';
+        log.textContent += '\n✅ Entity Sync:\n';
+        log.textContent += '   Entities synced: ' + data.sync.entities + '\n';
+        log.textContent += '   Errors: ' + data.sync.errors + '\n';
+        log.textContent += '\n✅ Constraint Discovery:\n';
+        log.textContent += '   Constraints found: ' + data.discovery.constraints + '\n';
         data.discovery.evidence.forEach(e => {
-          log.textContent += '   • [' + e.severity + '] ' + e.name + ' — ' + e.evidence + '\\n';
+          log.textContent += '   [' + e.severity + '] ' + e.name + ' - ' + e.evidence + '\n';
         });
-        log.textContent += '\\nPipeline complete. Switch domains in the dropdown to explore.';
+        log.textContent += '\nPipeline complete. Switch domains in the dropdown to explore.';
         status.innerHTML = '<p><span class="status-dot status-connected"></span> <strong>Pipeline complete!</strong> Imported ' + data.import.tables + ' tables, synced ' + data.sync.entities + ' entities, discovered ' + data.discovery.constraints + ' constraints.</p>';
 
         // Refresh domain list
