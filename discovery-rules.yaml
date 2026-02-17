@@ -93,3 +93,150 @@ rules:
       violationMessage: >
         This incident breached an SLA. Review required before closing.
       satisfiedMessage: No SLA breach detected.
+
+  - id: unassigned_high_priority
+    name: Unassigned High Priority Incidents
+    connector: servicenow
+    severity: warn
+    table: incident
+    query: "priorityIN1,2^stateIN1,2^assigned_toISEMPTY"
+    fields: [number, priority, state, assignment_group, sys_created_on]
+    limit: 50
+    threshold: "count > 0"
+    logic: >
+      P1 and P2 incidents without an assigned individual are at risk
+      of being missed. ITIL best practice requires high priority
+      incidents to have a named owner, not just a group assignment.
+      Auto-assigning to an individual without checking this is risky.
+    output:
+      appliesTo: [incident]
+      relevantActions: [assign, auto_resolve]
+      violationMessage: >
+        Unassigned high priority incidents exist. Ensure a named owner before taking action.
+      satisfiedMessage: All high priority incidents have assigned owners.
+
+  - id: incident_reopen_rate
+    name: Incident Reopen Rate
+    connector: servicenow
+    severity: warn
+    table: incident
+    query: "reopen_count>0^stateIN1,2,3"
+    fields: [number, reopen_count, state, category, assignment_group]
+    limit: 100
+    threshold: "reopened percentage > 10%"
+    logic: >
+      A high reopen rate indicates that incidents are being closed
+      prematurely or that fixes are not addressing root causes.
+      ITIL recommends tracking reopen rates as a quality metric.
+      Agents should flag this before closing similar incidents.
+    output:
+      appliesTo: [incident]
+      relevantActions: [resolve, close]
+      violationMessage: >
+        High reopen rate detected for this category. Verify the fix addresses root cause.
+      satisfiedMessage: Reopen rate is within acceptable range.
+
+  - id: major_incident_no_problem
+    name: Major Incident Without Problem Record
+    connector: servicenow
+    severity: warn
+    table: incident
+    query: "priority=1^stateIN6,7^problem_idISEMPTY"
+    fields: [number, priority, state, problem_id, resolved_at]
+    limit: 50
+    threshold: "count > 0"
+    logic: >
+      Resolved or closed P1 incidents without a linked problem record
+      means root cause analysis was skipped. ITIL requires major
+      incidents to trigger problem management to prevent recurrence.
+    output:
+      appliesTo: [incident, problem]
+      relevantActions: [close]
+      violationMessage: >
+        This major incident has no linked problem record. Create a problem for root cause analysis.
+      satisfiedMessage: Problem record exists for root cause tracking.
+
+  - id: recurring_ci_failures
+    name: Recurring CI Failures
+    connector: servicenow
+    severity: warn
+    table: incident
+    query: "stateIN1,2,3^cmdb_ciISNOTEMPTY^sys_created_on>javascript:gs.daysAgoStart(30)"
+    fields: [cmdb_ci, number, state, sys_created_on]
+    limit: 500
+    threshold: "incidents per CI > 3 in 30 days"
+    logic: >
+      Configuration items with multiple active incidents in a short
+      window indicate systemic instability. Assigning more work to
+      teams managing these CIs without addressing the pattern adds
+      risk. ITIL problem management should investigate.
+    output:
+      appliesTo: [incident, change_request]
+      relevantActions: [assign, resolve]
+      violationMessage: >
+        This CI has recurring failures. Consider problem investigation before further changes.
+      satisfiedMessage: No recurring failure pattern detected for this CI.
+
+  - id: failed_changes_on_ci
+    name: Recent Failed Changes on CI
+    connector: servicenow
+    severity: block
+    table: change_request
+    query: "stateIN4^close_code=unsuccessful^sys_created_on>javascript:gs.daysAgoStart(14)"
+    fields: [number, cmdb_ci, state, close_code, close_notes]
+    limit: 50
+    threshold: "failed changes on CI > 0 in 14 days"
+    logic: >
+      A CI that had a failed change in the last 14 days is in a
+      fragile state. Deploying more changes without investigating
+      the failure risks compounding the problem. Change management
+      should review before approving new changes on the same CI.
+    output:
+      appliesTo: [change_request]
+      relevantActions: [approve, implement]
+      violationMessage: >
+        Recent failed change on this CI. Review failure before approving new changes.
+      satisfiedMessage: No recent failed changes on this CI.
+
+  - id: stale_incidents
+    name: Stale Incident Warning
+    connector: servicenow
+    severity: warn
+    table: incident
+    query: "stateIN1,2^sys_updated_on<javascript:gs.daysAgoStart(7)"
+    fields: [number, state, priority, sys_updated_on, assigned_to]
+    limit: 100
+    threshold: "count > 0"
+    logic: >
+      Active incidents with no updates in 7+ days are likely stuck
+      or forgotten. ITIL recommends regular status updates on all
+      open incidents. Auto-resolving stale incidents without
+      investigation risks hiding real issues.
+    output:
+      appliesTo: [incident]
+      relevantActions: [auto_resolve, close]
+      violationMessage: >
+        Stale incidents detected. Investigate before auto-resolving.
+      satisfiedMessage: No stale incidents found.
+
+  - id: after_hours_change
+    name: After-Hours Change Risk
+    connector: servicenow
+    severity: warn
+    table: change_request
+    query: "type=normal^stateIN-5,3^approval=not requested"
+    fields: [number, type, state, approval, start_date, end_date]
+    limit: 20
+    threshold: "unapproved normal changes > 0"
+    logic: >
+      Normal changes that are scheduled but have not gone through
+      the approval process (CAB or peer review) represent risk.
+      ITIL change management requires all normal changes to be
+      approved before implementation. Emergency changes have a
+      separate expedited process.
+    output:
+      appliesTo: [change_request]
+      relevantActions: [implement, approve]
+      violationMessage: >
+        Unapproved normal change detected. Route through change approval before implementation.
+      satisfiedMessage: All scheduled changes have proper approval.
