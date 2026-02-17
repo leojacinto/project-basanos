@@ -483,6 +483,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 [MIT](LICENSE)
 
----
 
-*"Protocols move data. Structure makes it usable. Without structure, interoperability is just organized confusion."*
