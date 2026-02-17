@@ -1513,13 +1513,16 @@ function dashboardHtml(): string {
     var candidates = deduped.filter(function(c) { return c.status === 'candidate'; });
 
     el.innerHTML = '<div style="max-width:900px;margin:0 auto;">' +
+      '<h2 style="margin-top:0;margin-bottom:0.75rem;">Single-system Demo</h2>' +
 
       // Step 1: Discover
       '<div class="card" style="margin-bottom:1rem;">' +
         '<h2 style="margin-top:0;"><span style="color:var(--accent);font-size:0.9rem;">Step 1</span> Discover</h2>' +
         '<p style="color:var(--text-secondary);margin-bottom:0.75rem;">' +
           'Basanos connects to your ServiceNow instance, analyzes data patterns, and surfaces constraint candidates. ' +
-          'These are guardrails you have not built yet - discovered from your actual data.' +
+          'These are guardrails you have not built yet, discovered from your actual data. ' +
+          'While this can be done via Business Rules in ServiceNow or equivalent mechanisms in other systems, ' +
+          'the same discovery and enforcement concept here applies across multiple systems and agent platforms.' +
         '</p>' +
         '<div id="demo-candidates">' +
         (candidates.length === 0 && promoted.length === 0
