@@ -451,6 +451,118 @@ app.post("/api/demo/execute", express.json(), async (req, res) => {
   }
 });
 
+// ── Mock Jira (Multi-system Demo) ────────────────────────────
+
+const mockJiraDeploys = [
+  { key: "DEPLOY-4421", summary: "PowerKart v4.2 Release", status: "In Progress", service: "cartservice", assignee: "j.chen", created: "2026-02-15" },
+  { key: "DEPLOY-4455", summary: "Recommendation Engine ML Model Update", status: "In Progress", service: "recommendationservice", assignee: "s.patel", created: "2026-02-16" },
+  { key: "DEPLOY-4460", summary: "Payment Gateway TLS Upgrade", status: "Done", service: "ePayment", assignee: "m.jones", created: "2026-02-10" },
+];
+
+app.get("/api/mock-jira/deploys", (req, res) => {
+  const service = (req.query.service as string || "").toLowerCase();
+  if (!service) {
+    return res.json({ deploys: mockJiraDeploys.filter(d => d.status !== "Done") });
+  }
+  const matches = mockJiraDeploys.filter(d => d.status !== "Done" && d.service.toLowerCase().includes(service));
+  res.json({ deploys: matches });
+});
+
+// Cross-system constraint: block resolve if Jira has open deploy on same service
+const crossSystemConstraint: import("./constraints/types.js").ConstraintDefinition = {
+  id: "cross-system:jira_deploy_active",
+  name: "Active Jira Deploy on Service",
+  domain: "itsm",
+  appliesTo: ["incident"],
+  relevantActions: ["resolve", "close"],
+  severity: "block" as import("./constraints/types.js").ConstraintSeverity,
+  status: "candidate" as import("./constraints/types.js").ConstraintStatus,
+  description: "Blocks incident resolution when Jira has an active deploy ticket targeting the same service or CI. A deploy in progress means the environment is changing - resolving incidents against it risks false fixes.",
+  evaluate: async (context) => {
+    const deploys = (context.metadata.jira_open_deploys as number) || 0;
+    return {
+      constraintId: "cross-system:jira_deploy_active",
+      satisfied: deploys === 0,
+      severity: "block" as import("./constraints/types.js").ConstraintSeverity,
+      explanation: deploys > 0
+        ? `Jira has ${deploys} active deploy(s) on this service. Resolving the incident while a deploy is in progress risks a false fix. Wait for deploy completion.`
+        : "No active Jira deploys on this service.",
+      involvedEntities: [context.targetEntity],
+    };
+  },
+};
+constraintEngine.register(crossSystemConstraint);
+// Apply saved overrides (in case user promoted it before)
+const csOverride = constraintOverrides["cross-system:jira_deploy_active"];
+if (csOverride?.status) constraintEngine.updateConstraintStatus("cross-system:jira_deploy_active", csOverride.status as import("./constraints/types.js").ConstraintStatus);
+
+// Multi-system execute: enriches from both ServiceNow AND mock Jira
+app.post("/api/demo/multi-execute", express.json(), async (req, res) => {
+  if (!mcpClient) {
+    return res.status(400).json({ error: "MCP proxy not connected" });
+  }
+
+  const { action, incidentNumber } = req.body;
+  const trace: Record<string, unknown> = { action, incidentNumber, mode: "multi-system", steps: [] };
+  const steps = trace.steps as Array<Record<string, unknown>>;
+
+  try {
+    // Step 1: Enrich from ServiceNow
+    steps.push({ step: "enriching_sn", message: `Querying ServiceNow for ${incidentNumber} context...` });
+    const metadata = await mcpClient.enrichIncidentContext(incidentNumber);
+    if (metadata.error) {
+      return res.json({ trace, blocked: false, error: metadata.error as string });
+    }
+    steps.push({ step: "enriched_sn", metadata: { ...metadata } });
+
+    // Step 2: Enrich from Jira (cross-system)
+    const ciName = (metadata.ci_name as string) || "";
+    steps.push({ step: "enriching_jira", message: `Querying Jira for active deploys on "${ciName}"...` });
+    const serviceKey = ciName.split("/")[0]; // e.g. "cartservice/ecommerce/CloudObs" -> "cartservice"
+    const jiraMatches = mockJiraDeploys.filter(d => d.status !== "Done" && d.service.toLowerCase().includes(serviceKey.toLowerCase()));
+    metadata.jira_open_deploys = jiraMatches.length;
+    metadata.jira_deploy_details = jiraMatches.map(d => ({ key: d.key, summary: d.summary, status: d.status, assignee: d.assignee }));
+    steps.push({ step: "enriched_jira", jira: { service: serviceKey, deploys: jiraMatches.length, details: metadata.jira_deploy_details } });
+
+    // Step 3: Evaluate constraints (both SN and cross-system)
+    steps.push({ step: "evaluating", message: `Evaluating constraints for action: ${action} (ServiceNow + Jira)` });
+    const entityId = `itsm:incident:${incidentNumber}`;
+    const relatedEntities = metadata.ci_sys_id ? [`itsm:cmdb_ci:${metadata.ci_sys_id}`] : [];
+
+    const verdict = await constraintEngine.evaluate({
+      intendedAction: action,
+      targetEntity: entityId,
+      relatedEntities,
+      timestamp: new Date(),
+      metadata,
+    });
+
+    steps.push({
+      step: "verdict",
+      allowed: verdict.allowed,
+      summary: verdict.summary,
+      results: verdict.results.map(r => ({
+        constraintId: r.constraintId,
+        satisfied: r.satisfied,
+        severity: r.severity,
+        explanation: r.explanation,
+      })),
+    });
+
+    if (!verdict.allowed) {
+      steps.push({ step: "blocked", message: "Action blocked by cross-system constraints. Call NOT forwarded." });
+    }
+
+    res.json({
+      trace,
+      blocked: !verdict.allowed,
+      verdict: { allowed: verdict.allowed, summary: verdict.summary, results: verdict.results },
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err), trace });
+  }
+});
+
 app.get("/api/agent-card", (_req, res) => {
   const card = generateAgentCard({
     url: "stdio://basanos",
@@ -968,7 +1080,7 @@ function dashboardHtml(): string {
     <button onclick="showTab('agent-card')">Agent Card</button>
     <button onclick="showTab('audit')">Audit Trail</button>
     <button onclick="showTab('connect')">Connect</button>
-    <button onclick="showTab('demo')" style="color:var(--success);">Demo</button>
+    <button onclick="showTab('demo')" style="color:var(--success);">Single-system Demo</button>
     <button onclick="showTab('discovery-rules')" style="margin-left:auto;">Discovery Rules</button>
   </nav>
   <main>
@@ -1587,7 +1699,165 @@ function dashboardHtml(): string {
         '</div>' +
       '</div>' +
 
+      // ── Multi-system Demo ──
+      '<h2 style="margin-top:2rem;margin-bottom:0.75rem;">Multi-system Demo</h2>' +
+
+      '<div class="card" style="margin-bottom:1rem;">' +
+        '<h3 style="margin-top:0;">Cross-system Constraint</h3>' +
+        '<p style="color:var(--text-secondary);margin-bottom:0.75rem;">' +
+          'This is the scenario no single system can handle alone. Basanos enriches context from <strong>both</strong> ServiceNow and Jira, ' +
+          'then evaluates constraints that span both systems. A ServiceNow business rule cannot see Jira deploy tickets.' +
+        '</p>' +
+        '<div id="multi-constraint">' +
+        (function() {
+          var cs = allConstraints.find(function(c) { return c.id === 'cross-system:jira_deploy_active'; });
+          if (!cs) return '<p style="color:var(--text-secondary);font-size:0.85rem;">Cross-system constraint not loaded.</p>';
+          if (cs.status === 'promoted') {
+            return '<div style="padding:0.5rem;border:1px solid var(--success);border-radius:0.4rem;font-size:0.8rem;border-left:3px solid var(--success);">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                '<div><strong>' + cs.name + '</strong> <span class="badge badge-type">' + cs.severity + '</span> <span style="color:var(--success);font-size:0.75rem;">PROMOTED</span></div>' +
+                '<button style="font-size:0.75rem;padding:3px 10px;border:1px solid var(--border);border-radius:0.4rem;background:none;color:var(--text-secondary);cursor:pointer;" onclick="demoDemote(&apos;cross-system:jira_deploy_active&apos;)">Demote</button>' +
+              '</div>' +
+              '<div style="color:var(--text-secondary);margin-top:0.25rem;">' + cs.description + '</div>' +
+            '</div>';
+          } else {
+            return '<div style="padding:0.5rem;border:1px solid var(--border);border-radius:0.4rem;font-size:0.8rem;">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                '<div><strong>' + cs.name + '</strong> <span class="badge badge-type">' + cs.severity + '</span> <span style="color:var(--text-secondary);font-size:0.75rem;">CANDIDATE</span></div>' +
+                '<button class="btn-primary" style="font-size:0.75rem;padding:3px 10px;" onclick="demoPromote(&apos;cross-system:jira_deploy_active&apos;)">Promote</button>' +
+              '</div>' +
+              '<div style="color:var(--text-secondary);margin-top:0.25rem;">' + cs.description + '</div>' +
+            '</div>';
+          }
+        })() +
+        '</div>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<h3 style="margin-top:0;">Enforce Across Systems</h3>' +
+        '<p style="color:var(--text-secondary);margin-bottom:0.75rem;">' +
+          'Same incidents, but now Basanos checks ServiceNow <strong>and</strong> Jira before deciding. ' +
+          'Try resolving an incident whose CI has an active Jira deploy - even if ServiceNow has no change freeze.' +
+        '</p>' +
+        '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">' +
+          '<button class="btn-primary" style="font-size:0.8rem;background:#e74c3c;" onclick="multiResolve(&apos;INC0025428&apos;)">INC0025428 (SN freeze + Jira deploy)</button>' +
+          '<button class="btn-primary" style="font-size:0.8rem;background:#e67e22;" onclick="multiResolve(&apos;INC0025729&apos;)">INC0025729 (Jira deploy only)</button>' +
+          '<button class="btn-primary" style="font-size:0.8rem;background:var(--success);" onclick="multiResolve(&apos;INC0018834&apos;)">INC0018834 (both clear)</button>' +
+          '<button style="font-size:0.8rem;background:none;border:1px solid var(--border);color:var(--text);border-radius:0.4rem;padding:0.4rem 0.8rem;cursor:pointer;" onclick="multiClear()">Clear</button>' +
+        '</div>' +
+        '<div id="multi-chat" style="border:1px solid var(--border);border-radius:0.5rem;min-height:300px;max-height:500px;overflow-y:auto;padding:1rem;background:var(--bg);font-size:0.85rem;">' +
+          '<div style="color:var(--text-secondary);text-align:center;padding:2rem;">Promote the cross-system constraint above, then click a scenario to test</div>' +
+        '</div>' +
+      '</div>' +
+
     '</div>';
+  }
+
+  // ── Multi-system chat helpers ──
+  var multiMessages = [];
+
+  function multiAddMessage(role, content) {
+    var chat = document.getElementById('multi-chat');
+    if (!chat) return;
+    if (multiMessages.length === 0) chat.innerHTML = '';
+    multiMessages.push({ role: role, content: content });
+    var msg = document.createElement('div');
+    var isUser = role === 'user';
+    var bgColor = isUser ? 'var(--accent)' : 'var(--card-bg)';
+    var textColor = isUser ? '#fff' : 'var(--text-primary, var(--text))';
+    var align = isUser ? 'flex-end' : 'flex-start';
+    var label = isUser ? 'You (Agent)' : 'Basanos';
+    msg.style.cssText = 'display:flex;flex-direction:column;align-items:' + align + ';margin-bottom:0.75rem;';
+    msg.innerHTML = '<div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:0.2rem;">' + label + '</div>' +
+      '<div style="background:' + bgColor + ';color:' + textColor + ';padding:0.6rem 0.8rem;border-radius:0.5rem;max-width:85%;border:1px solid var(--border);">' + content + '</div>';
+    chat.appendChild(msg);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function multiClear() {
+    multiMessages = [];
+    var chat = document.getElementById('multi-chat');
+    if (chat) chat.innerHTML = '<div style="color:var(--text-secondary);text-align:center;padding:2rem;">Promote the cross-system constraint above, then click a scenario to test</div>';
+  }
+
+  async function multiResolve(incNumber) {
+    if (!incNumber) return;
+    multiAddMessage('user', 'Resolve incident <strong>' + incNumber + '</strong>');
+    multiAddMessage('basanos', '<em>Querying ServiceNow for incident context...</em>');
+
+    try {
+      var res = await fetch('/api/demo/multi-execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resolve', incidentNumber: incNumber }),
+      });
+      var data = await res.json();
+      if (data.error) { multiAddMessage('basanos', '<span style="color:#e74c3c;">Error: ' + data.error + '</span>'); return; }
+
+      var steps = (data.trace && data.trace.steps) || [];
+
+      // Show SN enrichment
+      var snStep = steps.find(function(s) { return s.step === 'enriched_sn'; });
+      if (snStep && snStep.metadata) {
+        var m = snStep.metadata;
+        multiAddMessage('basanos',
+          '<div style="background:var(--border);padding:0.5rem;border-radius:0.3rem;">' +
+          '<strong>ServiceNow context:</strong><br>' +
+          'Incident: ' + (m.incident_number || incNumber) + ' | Priority: <strong>' + (m.priority || '?') + '</strong> | CI: ' + (m.ci_name || 'none') + '<br>' +
+          'Change freeze: <strong style="color:' + (m.change_freeze_active ? '#e74c3c' : 'var(--success)') + ';">' + (m.change_freeze_active ? 'YES' : 'No') + '</strong>' +
+          (m.active_change_numbers && m.active_change_numbers.length > 0 ? ' (' + m.active_change_numbers.join(', ') + ')' : '') +
+          '</div>');
+      }
+
+      // Show Jira enrichment
+      var jiraStep = steps.find(function(s) { return s.step === 'enriched_jira'; });
+      if (jiraStep && jiraStep.jira) {
+        var j = jiraStep.jira;
+        var jiraHtml = '<div style="background:var(--border);padding:0.5rem;border-radius:0.3rem;">' +
+          '<strong>Jira context</strong> (service: ' + j.service + '):<br>';
+        if (j.deploys > 0) {
+          jiraHtml += '<strong style="color:#e74c3c;">' + j.deploys + ' active deploy(s):</strong><br>';
+          (j.details || []).forEach(function(d) {
+            jiraHtml += '<span style="color:var(--text-secondary);">' + d.key + '</span> ' + d.summary + ' [' + d.status + ']<br>';
+          });
+        } else {
+          jiraHtml += '<span style="color:var(--success);">No active deploys</span>';
+        }
+        jiraHtml += '</div>';
+        multiAddMessage('basanos', jiraHtml);
+      }
+
+      // Show verdict
+      multiAddMessage('basanos', '<em>Evaluating constraints across both systems...</em>');
+      var verdict = data.verdict;
+      if (verdict) {
+        var resultsHtml = '';
+        (verdict.results || []).forEach(function(r) {
+          var source = r.constraintId.indexOf('cross-system') >= 0 ? 'Jira' : 'ServiceNow';
+          var icon = r.satisfied ? '<span style="color:var(--success);">PASS</span>' : '<span style="color:#e74c3c;">BLOCK</span>';
+          resultsHtml += '<div style="padding:0.3rem 0;border-bottom:1px solid var(--border);">' +
+            icon + ' <strong>' + r.constraintId + '</strong> <span style="font-size:0.7rem;color:var(--text-secondary);">[' + source + ']</span><br>' +
+            '<span style="font-size:0.75rem;color:var(--text-secondary);">' + r.explanation + '</span></div>';
+        });
+
+        var verdictColor = verdict.allowed ? 'var(--success)' : '#e74c3c';
+        var verdictIcon = verdict.allowed ? 'ALLOWED' : 'BLOCKED';
+        multiAddMessage('basanos',
+          '<div style="background:var(--border);padding:0.5rem;border-radius:0.3rem;">' +
+          '<strong>Cross-system Results:</strong>' + resultsHtml +
+          '<div style="margin-top:0.5rem;padding:0.5rem;background:' + verdictColor + '22;border:1px solid ' + verdictColor + ';border-radius:0.3rem;text-align:center;">' +
+          '<strong style="color:' + verdictColor + ';font-size:1.1rem;">' + verdictIcon + '</strong><br>' +
+          '<span style="font-size:0.8rem;">' + verdict.summary + '</span></div></div>');
+      }
+
+      if (data.blocked) {
+        multiAddMessage('basanos', '<div style="padding:0.5rem;background:#e74c3c22;border:1px solid #e74c3c;border-radius:0.3rem;">' +
+          '<strong>No single system saw both risks.</strong> ServiceNow business rules cannot check Jira. Basanos evaluated constraints across both systems and blocked the action.</div>');
+      }
+
+    } catch (err) {
+      multiAddMessage('basanos', '<span style="color:#e74c3c;">Request failed: ' + err + '</span>');
+    }
   }
 
   async function demoPromote(constraintId) {
