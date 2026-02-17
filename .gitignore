@@ -16,6 +16,11 @@ domains/servicenow-live/
 # Local constraint overrides (operator promotions/demotions)
 constraint-overrides.json
 
+# MCP OAuth tokens (sensitive, never committed)
+.basanos/
+**/servicenow-tokens.json
+**/servicenow-mcp-token.json
+
 # IDE
 .vscode/
 .idea/

@@ -21,6 +21,7 @@ import { validateDomainSchema } from "./ontology/schema.js";
 import { loadDomainFromYaml, loadConstraintsFromYaml } from "./loader.js";
 import { generateAgentCard } from "./a2a/types.js";
 import { load as yamlLoad } from "js-yaml";
+import { ServiceNowMCPClient } from "./connectors/servicenow-mcp.js";
 
 // ── Initialize engines (load all YAML domains) ───────────────
 
@@ -205,6 +206,101 @@ app.get("/api/env-config", (_req, res) => {
     clientId: process.env.SERVICENOW_CLIENT_ID || "",
     hasClientSecret: !!process.env.SERVICENOW_CLIENT_SECRET,
   });
+});
+
+// ── MCP Proxy API ────────────────────────────────────────────
+
+let mcpClient: ServiceNowMCPClient | null = null;
+const mcpTokenFile = process.env.SERVICENOW_MCP_TOKEN_FILE
+  || resolve(__dirname, "..", ".basanos", "servicenow-mcp-token.json");
+
+// Auto-initialize if env vars exist
+if (process.env.SERVICENOW_INSTANCE_URL && (existsSync(mcpTokenFile) || (process.env.SERVICENOW_CLIENT_ID && process.env.SERVICENOW_CLIENT_SECRET))) {
+  try {
+    mcpClient = new ServiceNowMCPClient({
+      instanceUrl: process.env.SERVICENOW_INSTANCE_URL,
+      serverName: process.env.SERVICENOW_MCP_SERVER || "sn_mcp_server_default",
+      tokenFile: mcpTokenFile,
+      clientId: process.env.SERVICENOW_CLIENT_ID,
+      clientSecret: process.env.SERVICENOW_CLIENT_SECRET,
+    });
+    console.log("MCP Proxy client auto-initialized from .env");
+  } catch (err) {
+    console.log("MCP Proxy client init failed:", String(err));
+  }
+}
+
+app.get("/api/mcp-proxy/status", async (_req, res) => {
+  if (!mcpClient) {
+    return res.json({ connected: false, message: "Not configured. Enter credentials below." });
+  }
+  try {
+    const tools = await mcpClient.fetchTools();
+    res.json({
+      connected: true,
+      instance: mcpClient.getInstanceUrl(),
+      server: mcpClient.getServerName(),
+      tokenValid: mcpClient.isConnected(),
+      tools: tools.map(t => ({ name: t.name, type: t.tool_type, inputs: Object.keys(t.tool_inputs || {}) })),
+    });
+  } catch (err) {
+    res.json({ connected: false, message: String(err) });
+  }
+});
+
+app.post("/api/mcp-proxy/connect", express.json(), async (req, res) => {
+  const { instanceUrl, clientId, clientSecret, serverName } = req.body;
+  if (!instanceUrl || !clientId || !clientSecret) {
+    return res.status(400).json({ error: "instanceUrl, clientId, and clientSecret are required" });
+  }
+
+  // Ensure token directory exists
+  const tokenDir = dirname(mcpTokenFile);
+  if (!existsSync(tokenDir)) {
+    const { mkdirSync } = await import("fs");
+    mkdirSync(tokenDir, { recursive: true });
+  }
+
+  try {
+    const client = new ServiceNowMCPClient({
+      instanceUrl,
+      serverName: serverName || "sn_mcp_server_default",
+      tokenFile: mcpTokenFile,
+      clientId,
+      clientSecret,
+    });
+
+    // Get a fresh token
+    const refreshed = await client.refreshToken();
+    if (!refreshed) {
+      return res.status(401).json({ error: "OAuth token request failed. Check credentials." });
+    }
+
+    // Fetch tools to verify connection
+    const tools = await client.fetchTools(true);
+    mcpClient = client;
+
+    res.json({
+      success: true,
+      instance: instanceUrl,
+      server: serverName || "sn_mcp_server_default",
+      tools: tools.map(t => ({ name: t.name, type: t.tool_type, inputs: Object.keys(t.tool_inputs || {}) })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post("/api/mcp-proxy/refresh-token", async (_req, res) => {
+  if (!mcpClient) {
+    return res.status(400).json({ error: "MCP proxy not connected" });
+  }
+  try {
+    const refreshed = await mcpClient.refreshToken();
+    res.json({ success: refreshed, tokenValid: mcpClient.isConnected() });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 app.get("/api/agent-card", (_req, res) => {
@@ -1280,6 +1376,40 @@ function dashboardHtml(): string {
         <div id="connect-status" style="margin-top:1rem;"></div>
         <div id="connect-log" class="log-output" style="display:none;"></div>
       </div>
+      <div class="card" style="margin-top:1rem;">
+        <h2>MCP Proxy (Constraint Enforcement Gateway)</h2>
+        <p style="color:var(--text-secondary);margin-bottom:1rem;">
+          Connect Basanos to ServiceNow's native MCP Server. Basanos becomes a constraint-enforcing proxy:
+          agents call Basanos, constraints are checked, and allowed calls are forwarded to ServiceNow.
+        </p>
+        <div id="mcp-status" style="margin-bottom:1rem;">
+          <p style="color:var(--text-secondary);">Checking MCP proxy status...</p>
+        </div>
+        <details id="mcp-login-details" style="margin-bottom:0.75rem;">
+          <summary style="cursor:pointer;color:var(--accent);font-weight:600;">Configure MCP Connection</summary>
+          <div style="margin-top:0.5rem;">
+            <div class="form-group">
+              <label>Instance URL</label>
+              <input id="mcp-url" type="text" placeholder="https://your-instance.service-now.com" />
+            </div>
+            <div class="form-group">
+              <label>OAuth Client ID <span style="font-size:0.8rem;color:var(--text-secondary);">(from Machine Identity Console)</span></label>
+              <input id="mcp-client-id" type="text" placeholder="OAuth Client ID for MCP" />
+            </div>
+            <div class="form-group">
+              <label>OAuth Client Secret</label>
+              <input id="mcp-client-secret" type="password" placeholder="OAuth Client Secret" />
+            </div>
+            <div class="form-group">
+              <label>MCP Server Name <span style="font-size:0.8rem;color:var(--text-secondary);">(default: Quickstart Server)</span></label>
+              <input id="mcp-server-name" type="text" placeholder="sn_mcp_server_default" value="sn_mcp_server_default" />
+            </div>
+            <button class="btn-primary" onclick="connectMCPProxy()">Connect MCP Proxy</button>
+            <div id="mcp-connect-result" style="margin-top:0.75rem;"></div>
+          </div>
+        </details>
+        <div id="mcp-tools-list"></div>
+      </div>
       \${(function() {
         if (provenanceData.length === 0) return '<div class="card" style="margin-top:1rem;"><p class="empty-state">No domains loaded</p></div>';
         const active = provenanceData.find(p => p.domainDir === currentDomain) || provenanceData[0];
@@ -1313,6 +1443,75 @@ function dashboardHtml(): string {
             : '');
       })()}
     \`;
+  }
+
+  // Load MCP proxy status when Connect tab renders
+  async function loadMCPStatus() {
+    var statusEl = document.getElementById('mcp-status');
+    var toolsEl = document.getElementById('mcp-tools-list');
+    var detailsEl = document.getElementById('mcp-login-details');
+    if (!statusEl) return;
+    try {
+      var res = await fetch('/api/mcp-proxy/status');
+      var data = await res.json();
+      if (data.connected) {
+        statusEl.innerHTML = '<p><span class="status-dot status-connected"></span> <strong>Connected</strong> to ' + data.instance + '</p>' +
+          '<p style="font-size:0.85rem;color:var(--text-secondary);">Server: ' + data.server + ' | Token: ' + (data.tokenValid ? '<span style="color:var(--success);">Valid</span>' : '<span style="color:#e74c3c;">Expired</span> <button class="btn-primary" style="font-size:0.75rem;padding:2px 8px;" onclick="refreshMCPToken()">Refresh</button>') + '</p>';
+        if (data.tools && data.tools.length > 0) {
+          toolsEl.innerHTML = '<h3 style="margin-top:0.5rem;">Proxied Tools (' + data.tools.length + ')</h3>' +
+            '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0.5rem;">' +
+            data.tools.map(function(t) {
+              return '<div style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:0.5rem;font-size:0.85rem;">' +
+                '<strong>' + t.name + '</strong> <span class="badge badge-info" style="font-size:0.65rem;">' + t.type + '</span>' +
+                '<div style="color:var(--text-secondary);font-size:0.75rem;margin-top:0.25rem;">Inputs: ' + (t.inputs.length > 0 ? t.inputs.join(', ') : 'none') + '</div>' +
+                '</div>';
+            }).join('') + '</div>';
+        }
+        if (detailsEl) detailsEl.removeAttribute('open');
+      } else {
+        statusEl.innerHTML = '<p><span class="status-dot status-disconnected"></span> <strong>Not connected</strong>' + (data.message ? ' - ' + data.message : '') + '</p>';
+        toolsEl.innerHTML = '';
+      }
+    } catch (err) {
+      statusEl.innerHTML = '<p style="color:#e74c3c;">Failed to check MCP proxy status</p>';
+    }
+  }
+  // Auto-load on Connect tab
+  setTimeout(loadMCPStatus, 100);
+
+  async function connectMCPProxy() {
+    var resultEl = document.getElementById('mcp-connect-result');
+    resultEl.innerHTML = '<p style="color:var(--text-secondary);">Connecting...</p>';
+    try {
+      var res = await fetch('/api/mcp-proxy/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instanceUrl: document.getElementById('mcp-url').value,
+          clientId: document.getElementById('mcp-client-id').value,
+          clientSecret: document.getElementById('mcp-client-secret').value,
+          serverName: document.getElementById('mcp-server-name').value || 'sn_mcp_server_default',
+        }),
+      });
+      var data = await res.json();
+      if (data.success) {
+        resultEl.innerHTML = '<p><span class="status-dot status-connected"></span> <strong>Connected!</strong> ' + data.tools.length + ' tools discovered.</p>';
+        loadMCPStatus();
+      } else {
+        resultEl.innerHTML = '<p style="color:#e74c3c;">' + (data.error || 'Connection failed') + '</p>';
+      }
+    } catch (err) {
+      resultEl.innerHTML = '<p style="color:#e74c3c;">Error: ' + err + '</p>';
+    }
+  }
+
+  async function refreshMCPToken() {
+    try {
+      var res = await fetch('/api/mcp-proxy/refresh-token', { method: 'POST' });
+      var data = await res.json();
+      if (data.success) { loadMCPStatus(); }
+      else { alert('Token refresh failed'); }
+    } catch (err) { alert('Token refresh error: ' + err); }
   }
 
   function getCredentials() {
