@@ -7,6 +7,7 @@
  * Run: npm run dashboard
  */
 
+import "dotenv/config";
 import express from "express";
 import net from "net";
 import { execSync } from "child_process";
@@ -106,6 +107,16 @@ app.get("/api/domains/:domain/constraints", (req, res) => {
   })));
 });
 
+app.get("/api/env-config", (_req, res) => {
+  res.json({
+    instanceUrl: process.env.SERVICENOW_INSTANCE_URL || "",
+    username: process.env.SERVICENOW_USERNAME || "",
+    hasPassword: !!process.env.SERVICENOW_PASSWORD,
+    clientId: process.env.SERVICENOW_CLIENT_ID || "",
+    hasClientSecret: !!process.env.SERVICENOW_CLIENT_SECRET,
+  });
+});
+
 app.get("/api/agent-card", (_req, res) => {
   const card = generateAgentCard({
     url: "stdio://basanos",
@@ -143,7 +154,11 @@ app.get("/api/provenance", (_req, res) => {
 });
 
 app.post("/api/connect", async (req, res) => {
-  const { instanceUrl, username, password, clientId, clientSecret } = req.body;
+  const instanceUrl = req.body.instanceUrl || process.env.SERVICENOW_INSTANCE_URL;
+  const username = req.body.username || process.env.SERVICENOW_USERNAME;
+  const password = req.body.password || process.env.SERVICENOW_PASSWORD;
+  const clientId = req.body.clientId || process.env.SERVICENOW_CLIENT_ID;
+  const clientSecret = req.body.clientSecret || process.env.SERVICENOW_CLIENT_SECRET;
   if (!instanceUrl) {
     return res.status(400).json({ error: "Missing instanceUrl" });
   }
@@ -162,7 +177,12 @@ app.post("/api/connect", async (req, res) => {
 });
 
 app.post("/api/import", async (req, res) => {
-  const { instanceUrl, username, password, clientId, clientSecret, tables } = req.body;
+  const instanceUrl = req.body.instanceUrl || process.env.SERVICENOW_INSTANCE_URL;
+  const username = req.body.username || process.env.SERVICENOW_USERNAME;
+  const password = req.body.password || process.env.SERVICENOW_PASSWORD;
+  const clientId = req.body.clientId || process.env.SERVICENOW_CLIENT_ID;
+  const clientSecret = req.body.clientSecret || process.env.SERVICENOW_CLIENT_SECRET;
+  const tables = req.body.tables;
   if (!instanceUrl) {
     return res.status(400).json({ error: "Missing instanceUrl" });
   }
@@ -966,39 +986,47 @@ function dashboardHtml(): string {
     \`;
   }
 
-  function renderConnect(el) {
+  async function renderConnect(el) {
+    // Pre-populate from server-side .env
+    let envConfig = { instanceUrl: '', username: '', hasPassword: false, clientId: '', hasClientSecret: false };
+    try {
+      const cfgRes = await fetch('/api/env-config');
+      envConfig = await cfgRes.json();
+    } catch(e) { /* ignore */ }
+
     el.innerHTML = \`
       <div class="card">
         <h2>Connect to ServiceNow</h2>
         <p style="color:var(--text-secondary);margin-bottom:1rem;">
           Enter your ServiceNow instance credentials to import schemas, sync entities,
           and discover constraints from live data. This proves the ontology is real, not static YAML.
+          \${envConfig.instanceUrl ? '<br><strong style="color:var(--success);">Values loaded from .env</strong>' : ''}
         </p>
         <div class="form-group">
           <label>Instance URL</label>
-          <input id="snow-url" type="text" placeholder="https://your-instance.service-now.com" />
+          <input id="snow-url" type="text" placeholder="https://your-instance.service-now.com" value="\${envConfig.instanceUrl}" />
         </div>
         <details style="margin-bottom:0.75rem;">
           <summary style="cursor:pointer;color:var(--accent);font-weight:600;">OAuth (recommended for production)</summary>
           <div style="margin-top:0.5rem;">
             <div class="form-group">
               <label>Client ID</label>
-              <input id="snow-client-id" type="text" placeholder="OAuth Client ID" />
+              <input id="snow-client-id" type="text" placeholder="OAuth Client ID" value="\${envConfig.clientId}" />
             </div>
             <div class="form-group">
               <label>Client Secret</label>
-              <input id="snow-client-secret" type="password" placeholder="OAuth Client Secret" />
+              <input id="snow-client-secret" type="password" placeholder="\${envConfig.hasClientSecret ? 'Set in .env' : 'OAuth Client Secret'}" />
             </div>
             <p style="font-size:0.8rem;color:var(--text-secondary);">Set up in ServiceNow: System OAuth &gt; Application Registry. If provided without username/password, uses client_credentials grant.</p>
           </div>
         </details>
         <div class="form-group">
           <label>Username <span style="font-size:0.8rem;color:var(--text-secondary);">(required for basic auth or OAuth password grant)</span></label>
-          <input id="snow-user" type="text" placeholder="admin" />
+          <input id="snow-user" type="text" placeholder="admin" value="\${envConfig.username}" />
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input id="snow-pass" type="password" placeholder="Password" />
+          <input id="snow-pass" type="password" placeholder="\${envConfig.hasPassword ? 'Set in .env' : 'Password'}" />
         </div>
         <div style="display:flex;gap:0.75rem;">
           <button class="btn-primary" onclick="testConnection()">Test Connection</button>

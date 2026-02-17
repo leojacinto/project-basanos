@@ -1,10 +1,10 @@
 {
-  "source": "http://localhost:8090",
-  "importedAt": "2026-02-17T03:37:39.794Z",
+  "source": "https://demoalectriallwfza130373.service-now.com/",
+  "importedAt": "2026-02-17T03:45:51.425Z",
   "pipeline": "basanos cli import",
   "tablesImported": 6,
-  "fieldsImported": 32,
-  "referencesFound": 8,
+  "fieldsImported": 310,
+  "referencesFound": 0,
   "tables": [
     "incident",
     "cmdb_ci",
@@ -13,26 +13,32 @@
     "problem",
     "sys_user_group"
   ],
-  "discoveredAt": "2026-02-17T03:37:39.803Z",
-  "constraintsDiscovered": 3,
+  "discoveredAt": "2026-02-17T03:45:55.518Z",
+  "constraintsDiscovered": 4,
   "discoveryEvidence": [
     {
       "id": "discovered:change_freeze",
       "name": "Active Change Freeze (Discovered)",
       "severity": "block",
-      "evidence": "1 change requests found in recent history"
+      "evidence": "10 change requests found in recent history"
     },
     {
       "id": "discovered:p1_reassignment",
       "name": "P1 Reassignment Caution (Discovered)",
       "severity": "warn",
-      "evidence": "3 active P1s, 2 reassigned (67% rate)"
+      "evidence": "50 active P1s, 0 reassigned (0% rate)"
+    },
+    {
+      "id": "discovered:group_capacity",
+      "name": "Group Capacity Warning (Discovered)",
+      "severity": "warn",
+      "evidence": "2 overloaded groups, max: Powerkart Support (305 tickets)"
     },
     {
       "id": "discovered:sla_breach",
       "name": "SLA Breach Review (Discovered)",
       "severity": "warn",
-      "evidence": "2 breached SLA records found"
+      "evidence": "100 breached SLA records found"
     }
   ]
 }

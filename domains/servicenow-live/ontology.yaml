@@ -2,217 +2,1972 @@ name: servicenow
 label: ServiceNow
 version: 0.1.0-imported
 description: >-
-  Auto-imported ontology from a live ServiceNow instance. Contains 6 entity types with 32 fields and 8 cross-table
+  Auto-imported ontology from a live ServiceNow instance. Contains 6 entity types with 310 fields and 0 cross-table
   relationships. Review and refine this schema to add business context that the API schema cannot express.
 entityTypes:
   - name: incident
     label: incident
     description: 'Imported from ServiceNow table: incident'
     properties:
-      - name: number
-        label: Number
+      - name: promoted_on
+        label: Promoted
         type: string
-        required: true
-        description: Unique incident identifier
-      - name: short_description
-        label: Short Description
+        required: false
+        description: Promoted
+      - name: overview
+        label: Overview
         type: string
-        required: true
-        description: Brief summary
-      - name: state
-        label: State
+        required: false
+        description: Overview
+      - name: proposed_on
+        label: Proposed
+        type: string
+        required: false
+        description: Proposed
+      - name: category
+        label: Category
         type: enum
-        required: true
-        description: Incident lifecycle state
+        required: false
+        description: Category
+        enumValues:
+          - software
+          - hardware
+          - network
+          - Cloud Management
+          - inquiry
+          - database
+      - name: origin_id
+        label: Origin
+        type: string
+        required: false
+        description: Origin
+      - name: notify
+        label: Notify
+        type: enum
+        required: false
+        description: Notify
+        enumValues:
+          - '3'
+          - '1'
+          - '2'
+      - name: reopened_by
+        label: Last reopened by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: caused_by
+        label: Caused by Change
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: business_stc
+        label: Business resolve time
+        type: string
+        required: false
+        description: Business resolve time
+      - name: severity
+        label: Severity
+        type: enum
+        required: false
+        description: Severity
         enumValues:
           - '1'
           - '2'
+          - '3'
+      - name: business_impact
+        label: Business impact
+        type: string
+        required: false
+        description: Business impact
+      - name: child_incidents
+        label: Child Incidents
+        type: string
+        required: false
+        description: Child Incidents
+      - name: asset
+        label: Asset
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: timeline
+        label: Timeline
+        type: string
+        required: false
+        description: Timeline
+      - name: resolved_by
+        label: Resolved by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: major_incident_state
+        label: Major incident state
+        type: enum
+        required: false
+        description: Major incident state
+        enumValues:
+          - proposed
+          - accepted
+          - rejected
+          - canceled
+      - name: trigger_rule
+        label: Trigger Rule
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: incident_state
+        label: Incident state
+        type: enum
+        required: false
+        description: Incident state
+        enumValues:
+          - '2'
+          - '8'
           - '3'
           - '6'
           - '7'
-          - '8'
-      - name: priority
-        label: Priority
-        type: enum
-        required: true
-        description: Priority derived from impact and urgency
-        enumValues:
           - '1'
-          - '2'
-          - '3'
-          - '4'
-          - '5'
-      - name: impact
-        label: Impact
+      - name: origin_table
+        label: Origin table
+        type: string
+        required: false
+        description: Origin table
+      - name: actions_taken
+        label: Actions taken
+        type: string
+        required: false
+        description: Actions taken
+      - name: caller_id
+        label: Caller
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: reopened_time
+        label: Last reopened at
+        type: string
+        required: false
+        description: Last reopened at
+      - name: rfc
+        label: Change Request
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: calendar_stc
+        label: Resolve time
+        type: string
+        required: false
+        description: Resolve time
+      - name: cause
+        label: Probable cause
+        type: string
+        required: false
+        description: Probable cause
+      - name: subcategory
+        label: Subcategory
         type: enum
-        required: true
-        description: Business impact
+        required: false
+        description: Subcategory
         enumValues:
-          - '1'
-          - '2'
-          - '3'
-      - name: urgency
-        label: Urgency
+          - Outage
+          - Something is broken
+          - Question
+          - os
+          - disk
+          - vpn
+          - dns
+          - Server
+          - email
+          - monitor
+          - wireless
+          - antivirus
+          - db2
+          - Request
+          - Performance Issue
+          - cpu
+          - keyboard
+          - dhcp
+          - email
+          - oracle
+          - memory
+          - mouse
+          - ip address
+          - internal application
+          - sql server
+      - name: resolved_at
+        label: Resolved
+        type: string
+        required: false
+        description: Resolved
+      - name: lessons_learned
+        label: Findings
+        type: string
+        required: false
+        description: Findings
+      - name: promoted_by
+        label: Promoted by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: close_code
+        label: Close code
         type: enum
-        required: true
-        description: Resolution urgency
+        required: false
+        description: Close code
         enumValues:
-          - '1'
-          - '2'
-          - '3'
-      - name: opened_at
-        label: Opened
-        type: date
-        required: true
-        description: When the incident was created
-    relationships:
-      - name: business_service
-        label: Business Service
-        targetType: cmdb_ci_service
-        cardinality: many_to_one
-        description: Affected business service
-      - name: cmdb_ci
-        label: Configuration Item
-        targetType: cmdb_ci
-        cardinality: many_to_one
-        description: Affected CI
-      - name: assignment_group
-        label: Assignment Group
-        targetType: sys_user_group
-        cardinality: many_to_one
-        description: Assigned team
+          - Resolved by request
+          - No resolution provided
+          - Solution provided
+          - Resolved by caller
+          - Workaround provided
+          - Duplicate
+          - Resolved by change
+          - User error
+          - Known error
+          - Resolved by problem
       - name: problem_id
         label: Problem
-        targetType: problem
-        cardinality: many_to_one
-        description: Related problem record
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: proposed_by
+        label: Proposed by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: parent_incident
+        label: Parent Incident
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: reopen_count
+        label: Reopen count
+        type: string
+        required: false
+        description: Reopen count
+      - name: hold_reason
+        label: On hold reason
+        type: enum
+        required: false
+        description: On hold reason
+        enumValues:
+          - '1'
+          - '5'
+          - '3'
+          - '4'
+      - name: u_mrn_no
+        label: MRN No
+        type: string
+        required: false
+        description: MRN No
+    relationships: []
   - name: cmdb_ci
     label: cmdb_ci
     description: 'Imported from ServiceNow table: cmdb_ci'
     properties:
-      - name: name
-        label: Name
+      - name: cmdb_ot_entity
+        label: OT device details
         type: string
-        required: true
-        description: CI name
+        required: false
+        description: Reference to [object Object] (external)
+      - name: last_discovered
+        label: Most recent discovery
+        type: string
+        required: false
+        description: Most recent discovery
+      - name: change_control
+        label: Approval group
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: mac_address
+        label: MAC Address
+        type: string
+        required: false
+        description: MAC Address
+      - name: correlation_id
+        label: Correlation ID
+        type: string
+        required: false
+        description: Correlation ID
+      - name: duplicate_of
+        label: Duplicate Of
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: attested_by
+        label: Attested By
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: short_description
+        label: Description
+        type: string
+        required: false
+        description: Description
       - name: environment
         label: Environment
         type: enum
         required: false
-        description: Deployment environment
-      - name: operational_status
-        label: Operational Status
+        description: Environment
+        enumValues:
+          - Production
+          - Development
+          - Test
+      - name: business_unit
+        label: Business Unit
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: sn_vul_qualys_id
+        label: Qualys ID
+        type: string
+        required: false
+        description: Qualys ID
+      - name: attestation_status
+        label: Attestation Status
         type: enum
         required: false
-        description: Current status
+        description: Attestation Status
+        enumValues:
+          - Not Yet Reviewed
+          - Attested
+          - Rejected
+      - name: first_discovered
+        label: First discovered
+        type: string
+        required: false
+        description: First discovered
+      - name: model_number
+        label: Model number
+        type: string
+        required: false
+        description: Model number
+      - name: managed_by_group
+        label: Managed By Group
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: product_instance_id
+        label: Product instance identifier
+        type: string
+        required: false
+        description: Product instance identifier
+      - name: schedule
+        label: Schedule
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: attributes
+        label: Attributes
+        type: string
+        required: false
+        description: Attributes
+      - name: attestation_score
+        label: Attestation Score
+        type: string
+        required: false
+        description: Attestation Score
+      - name: discovery_source
+        label: Discovery source
+        type: enum
+        required: false
+        description: Discovery source
+        enumValues:
+          - Tivoli
+          - Health Log Analytics
+          - SG-Jamf
+          - SG-Automox
+          - Altiris
+          - SGO-Datadog
+          - EventManagement
+          - SG-Forescout
+          - Cloud Insights Billing
+          - SG-Wiz
+          - VR-Tenable
+          - SG-ScienceLogic
+          - SG-OT Claroty CTD
+          - VR-BigFix
+          - VR-PrismaCloud
+          - SG-WorkspaceONEUEM
+          - SG-SolarWinds
+          - VR-Qualys
+          - SG-AppDynamics
+          - MS SMS
+          - SG-SCCM
+          - Other Automated
+          - PatternDesigner
+          - SG-TenableForAssets
+          - AgentClientCollector
+          - SG-Meraki
+          - ILMT
+          - SGC-AD
+          - VR-Unknown
+          - SG-BigFix
+          - VR-Manual
+          - SG-Lansweeper
+          - SG-Equipment Model Excel Import
+          - Engineering Software
+          - SG-Rapid7
+          - SG-Tenable
+          - ServiceNow VISC
+          - Manual via IRE
+          - SG-CrowdStrike
+          - LANDesk
+          - SG-NewRelic
+          - ServiceWatch
+          - SG-Lightstep
+          - ManualStagingTable
+          - SG-Infoblox
+          - Manual Entry
+          - ACC-Visibility
+          - SG-Intune
+          - ServiceNowCSPM
+          - BigFix Inventory
+          - VR-MicrosoftTVM
+          - SG-SentinelOne
+          - SG-Azure
+          - SG-Qualys
+          - SG-Splunk
+          - SG-OT Excel Import
+          - SNAssetManagement
+          - SG-OpenTelemetry
+          - SG-ExtraHop
+          - SGA-Apigee X
+          - SG-GCP
+          - ImportSet
+          - Manual via AI Agent
+          - CredentiallessDiscovery
+          - SG-AWS
+          - ServiceNow
+          - SG-OT MSFT D4IoT
+          - OpenView
+          - SG-LogicMonitor
+          - VR-Claroty CTD
+          - VR-Rapid7
+          - SGO-Dynatrace
+          - SG-Puppet Server
+          - SG-OT Azure D4IoT
+          - ServiceNow DEX
+          - SG-Qualys-ServiceNow
+          - VR-Prisma
+          - SG-Netskope
+          - VR-ASC
+          - SG-Defender
+          - SG-Trellix
+          - SG-Nexthink
+          - SG-TaniumSN
+      - name: subcategory
+        label: Subcategory
+        type: string
+        required: false
+        description: Subcategory
+      - name: fault_count
+        label: Fault count
+        type: string
+        required: false
+        description: Fault count
+      - name: created_by_qualys
+        label: Created by Qualys
+        type: string
+        required: false
+        description: Created by Qualys
+      - name: life_cycle_stage
+        label: Life Cycle Stage
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: fqdn
+        label: Fully qualified domain name
+        type: string
+        required: false
+        description: Fully qualified domain name
+      - name: sn_vul_qualys_host_id
+        label: Qualys host ID
+        type: string
+        required: false
+        description: Qualys host ID
+      - name: skip_sync
+        label: Skip sync
+        type: string
+        required: false
+        description: Skip sync
+      - name: start_date
+        label: Start date
+        type: string
+        required: false
+        description: Start date
+      - name: monitor
+        label: Monitor
+        type: string
+        required: false
+        description: Monitor
+      - name: ip_address
+        label: IP Address
+        type: string
+        required: false
+        description: IP Address
+      - name: can_print
+        label: Can Print
+        type: string
+        required: false
+        description: Can Print
+      - name: dns_domain
+        label: DNS Domain
+        type: string
+        required: false
+        description: DNS Domain
+      - name: attested
+        label: Attested
+        type: string
+        required: false
+        description: Attested
+      - name: attested_date
+        label: Attested Date
+        type: string
+        required: false
+        description: Attested Date
+      - name: maintenance_schedule
+        label: Maintenance schedule
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: assignment_group
+        label: Change Group
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: managed_by
+        label: Managed by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: manufacturer
+        label: Manufacturer
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: po_number
+        label: PO number
+        type: string
+        required: false
+        description: PO number
+      - name: due_in
+        label: Due in
+        type: enum
+        required: false
+        description: Due in
+      - name: checked_in
+        label: Checked in
+        type: string
+        required: false
+        description: Checked in
+      - name: vendor
+        label: Vendor
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: company
+        label: Company
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: install_date
+        label: Installed
+        type: string
+        required: false
+        description: Installed
+      - name: justification
+        label: Justification
+        type: string
+        required: false
+        description: Justification
+      - name: department
+        label: Department
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: invoice_number
+        label: Invoice number
+        type: string
+        required: false
+        description: Invoice number
+      - name: gl_account
+        label: GL account
+        type: string
+        required: false
+        description: GL account
+      - name: assigned_to
+        label: Assigned to
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: warranty_expiration
+        label: Warranty expiration
+        type: string
+        required: false
+        description: Warranty expiration
+      - name: asset_tag
+        label: Asset tag
+        type: string
+        required: false
+        description: Asset tag
+      - name: cost
+        label: Cost
+        type: string
+        required: false
+        description: Cost
+      - name: serial_number
+        label: Serial number
+        type: string
+        required: false
+        description: Serial number
+      - name: owned_by
+        label: Owned by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: model_id
+        label: Model ID
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: checked_out
+        label: Checked out
+        type: string
+        required: false
+        description: Checked out
+      - name: cost_cc
+        label: Cost currency
+        type: enum
+        required: false
+        description: Cost currency
+      - name: order_date
+        label: Ordered
+        type: string
+        required: false
+        description: Ordered
+      - name: support_group
+        label: Support group
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: delivery_date
+        label: Order received
+        type: string
+        required: false
+        description: Order received
+      - name: install_status
+        label: Install Status
+        type: enum
+        required: false
+        description: Install Status
+        enumValues:
+          - '1'
+          - '5'
+          - '4'
+          - '2'
+          - '3'
+          - '7'
+          - '8'
+          - '6'
+          - '100'
+      - name: due
+        label: Due
+        type: string
+        required: false
+        description: Due
+      - name: cost_center
+        label: Cost center
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: supported_by
+        label: Supported by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: name
+        label: Name
+        type: string
+        required: false
+        description: Name
+      - name: unverified
+        label: Requires verification
+        type: string
+        required: false
+        description: Requires verification
+      - name: assigned
+        label: Assigned
+        type: string
+        required: false
+        description: Assigned
+      - name: location
+        label: Location
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: purchase_date
+        label: Purchased
+        type: string
+        required: false
+        description: Purchased
+      - name: asset
+        label: Asset
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: lease_id
+        label: Lease contract
+        type: string
+        required: false
+        description: Lease contract
+      - name: comments
+        label: Comments
+        type: string
+        required: false
+        description: Comments
+      - name: category
+        label: Category
+        type: string
+        required: false
+        description: Category
+      - name: operational_status
+        label: Operational status
+        type: enum
+        required: false
+        description: Operational status
+        enumValues:
+          - '5'
+          - '6'
+          - '4'
+          - '1'
+          - '2'
+          - '3'
+      - name: life_cycle_stage_status
+        label: Life Cycle Stage Status
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
     relationships: []
   - name: cmdb_ci_service
     label: cmdb_ci_service
     description: 'Imported from ServiceNow table: cmdb_ci_service'
     properties:
-      - name: name
-        label: Name
+      - name: version
+        label: Version
         type: string
-        required: true
-        description: Service name
+        required: false
+        description: Version
       - name: busines_criticality
         label: Business Criticality
         type: enum
         required: false
-        description: Criticality level
-      - name: operational_status
-        label: Operational Status
+        description: Business Criticality
+        enumValues:
+          - 1 - most critical
+          - 2 - somewhat critical
+          - 3 - less critical
+          - 4 - not critical
+      - name: vulnerability_risk_score
+        label: Vulnerability risk score
+        type: string
+        required: false
+        description: Vulnerability risk score
+      - name: spm_taxonomy_node
+        label: Taxonomy node
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: checkout
+        label: Checkout
         type: enum
         required: false
-        description: Current status
-    relationships:
+        description: Checkout
+        enumValues:
+          - 'true'
+          - 'false'
+      - name: total_vulnerable_items
+        label: Total vulnerable items
+        type: string
+        required: false
+        description: Total vulnerable items
+      - name: sn_vul_qualys_id
+        label: Qualys ID
+        type: string
+        required: false
+        description: Qualys ID
+      - name: business_need
+        label: Business need
+        type: string
+        required: false
+        description: Business need
+      - name: created_by_qualys
+        label: Created by Qualys
+        type: string
+        required: false
+        description: Created by Qualys
+      - name: aliases
+        label: Aliases
+        type: string
+        required: false
+        description: Aliases
+      - name: monitoring_requirements
+        label: Monitoring requirements
+        type: string
+        required: false
+        description: Monitoring requirements
+      - name: user_group
+        label: Users supported
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: parent
+        label: Parent
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: spm_service_portfolio
+        label: Service portfolio
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: stakeholders
+        label: Stakeholders
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: state
+        label: State
+        type: enum
+        required: false
+        description: State
+        enumValues:
+          - published
+          - draft
+          - awaiting_approval
+          - publishing
+      - name: cmdb_ot_entity
+        label: OT device details
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: delivery_manager
+        label: Delivery manager
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: unit_description
+        label: Unit description
+        type: string
+        required: false
+        description: Unit description
+      - name: compatibility_dependencies
+        label: Compatibility dependencies
+        type: string
+        required: false
+        description: Compatibility dependencies
+      - name: service_level_requirement
+        label: Service level requirement
+        type: string
+        required: false
+        description: Service level requirement
+      - name: number
+        label: Number
+        type: string
+        required: false
+        description: Number
+      - name: used_for
+        label: Used for
+        type: enum
+        required: false
+        description: Used for
+        enumValues:
+          - Test
+          - Disaster recovery
+          - Production
+          - Development
+          - Staging
+          - Demonstration
+          - QA
+          - Training
+      - name: portfolio_status
+        label: Phase
+        type: enum
+        required: false
+        description: Phase
+        enumValues:
+          - retired
+          - pipeline
+          - catalog
+      - name: consumer_type
+        label: Consumer type
+        type: enum
+        required: false
+        description: Consumer type
+        enumValues:
+          - internal
+          - external
+          - both
+      - name: published_ref
+        label: Published Item
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: csat_score
+        label: CSAT score
+        type: string
+        required: false
+        description: CSAT score
+      - name: price_model
+        label: Price model
+        type: enum
+        required: false
+        description: Price model
+        enumValues:
+          - per_unit
+          - fixed
+      - name: last_review_date
+        label: Last review date
+        type: string
+        required: false
+        description: Last review date
+      - name: end_date
+        label: End date
+        type: string
+        required: false
+        description: End date
+      - name: attested_date
+        label: Attested Date
+        type: string
+        required: false
+        description: Attested Date
+      - name: business_contact
+        label: Business contact
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: order_date
+        label: Ordered
+        type: string
+        required: false
+        description: Ordered
+      - name: environment
+        label: Environment
+        type: enum
+        required: false
+        description: Environment
+      - name: due
+        label: Due
+        type: string
+        required: false
+        description: Due
+      - name: attested
+        label: Attested
+        type: string
+        required: false
+        description: Attested
+      - name: unverified
+        label: Requires verification
+        type: string
+        required: false
+        description: Requires verification
+      - name: correlation_id
+        label: Correlation ID
+        type: string
+        required: false
+        description: Correlation ID
+      - name: attributes
+        label: Attributes
+        type: string
+        required: false
+        description: Attributes
+      - name: location
+        label: Location
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: asset
+        label: Asset
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: category
+        label: Category
+        type: string
+        required: false
+        description: Category
+      - name: fault_count
+        label: Fault count
+        type: string
+        required: false
+        description: Fault count
+      - name: lease_id
+        label: Lease contract
+        type: string
+        required: false
+        description: Lease contract
+      - name: service_classification
+        label: Service classification
+        type: enum
+        required: false
+        description: Service classification
+        enumValues:
+          - Technical Service
+          - Application Service
+          - Business Service
+      - name: perf_score
+        label: Performance score
+        type: string
+        required: false
+        description: Performance score
+      - name: sla
+        label: SLA
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: service_owner_delegate
+        label: Delegate
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: service_status
+        label: Status
+        type: enum
+        required: false
+        description: Status
+        enumValues:
+          - approved
+          - buildtestrelease
+          - obsolete
+          - requirements
+          - chartered
+          - operational
+          - definition
+          - design
+          - retiring
+          - analysis
+          - development
+          - retired
+      - name: schedule
+        label: Schedule
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: skip_sync
+        label: Skip sync
+        type: string
+        required: false
+        description: Skip sync
+      - name: operational_status
+        label: Operational status
+        type: enum
+        required: false
+        description: Operational status
+        enumValues:
+          - '6'
+          - '2'
+          - '3'
+          - '7'
+          - '1'
+          - '8'
+          - '4'
+          - '5'
+      - name: product_instance_id
+        label: Product instance identifier
+        type: string
+        required: false
+        description: Product instance identifier
+      - name: attestation_score
+        label: Attestation Score
+        type: string
+        required: false
+        description: Attestation Score
+      - name: discovery_source
+        label: Discovery source
+        type: enum
+        required: false
+        description: Discovery source
+      - name: first_discovered
+        label: First discovered
+        type: string
+        required: false
+        description: First discovered
+      - name: due_in
+        label: Due in
+        type: enum
+        required: false
+        description: Due in
+      - name: install_date
+        label: Installed
+        type: string
+        required: false
+        description: Installed
+      - name: invoice_number
+        label: Invoice number
+        type: string
+        required: false
+        description: Invoice number
+      - name: gl_account
+        label: GL account
+        type: string
+        required: false
+        description: GL account
+      - name: warranty_expiration
+        label: Warranty expiration
+        type: string
+        required: false
+        description: Warranty expiration
+      - name: asset_tag
+        label: Asset tag
+        type: string
+        required: false
+        description: Asset tag
+      - name: fqdn
+        label: Fully qualified domain name
+        type: string
+        required: false
+        description: Fully qualified domain name
+      - name: change_control
+        label: Approval group
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
       - name: owned_by
-        label: Owned By
-        targetType: sys_user_group
-        cardinality: many_to_one
-        description: Owning group
+        label: Owned by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: checked_out
+        label: Checked out
+        type: string
+        required: false
+        description: Checked out
+      - name: business_unit
+        label: Business Unit
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: delivery_date
+        label: Order received
+        type: string
+        required: false
+        description: Order received
+      - name: install_status
+        label: Install Status
+        type: enum
+        required: false
+        description: Install Status
+      - name: cost_center
+        label: Cost center
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: attested_by
+        label: Attested By
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: supported_by
+        label: Supported by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: dns_domain
+        label: DNS Domain
+        type: string
+        required: false
+        description: DNS Domain
+      - name: name
+        label: Name
+        type: string
+        required: false
+        description: Name
+      - name: assigned
+        label: Assigned
+        type: string
+        required: false
+        description: Assigned
+      - name: purchase_date
+        label: Purchased
+        type: string
+        required: false
+        description: Purchased
+      - name: life_cycle_stage
+        label: Life Cycle Stage
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: subcategory
+        label: Subcategory
+        type: string
+        required: false
+        description: Subcategory
+      - name: short_description
+        label: Description
+        type: string
+        required: false
+        description: Description
+      - name: assignment_group
+        label: Change Group
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: managed_by
+        label: Managed by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: managed_by_group
+        label: Managed By Group
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: last_discovered
+        label: Most recent discovery
+        type: string
+        required: false
+        description: Most recent discovery
+      - name: can_print
+        label: Can Print
+        type: string
+        required: false
+        description: Can Print
+      - name: manufacturer
+        label: Manufacturer
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: po_number
+        label: PO number
+        type: string
+        required: false
+        description: PO number
+      - name: checked_in
+        label: Checked in
+        type: string
+        required: false
+        description: Checked in
+      - name: vendor
+        label: Vendor
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: life_cycle_stage_status
+        label: Life Cycle Stage Status
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: mac_address
+        label: MAC Address
+        type: string
+        required: false
+        description: MAC Address
+      - name: company
+        label: Company
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: model_number
+        label: Model number
+        type: string
+        required: false
+        description: Model number
+      - name: justification
+        label: Justification
+        type: string
+        required: false
+        description: Justification
+      - name: department
+        label: Department
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: assigned_to
+        label: Assigned to
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: start_date
+        label: Start date
+        type: string
+        required: false
+        description: Start date
+      - name: cost
+        label: Cost
+        type: string
+        required: false
+        description: Cost
+      - name: comments
+        label: Comments
+        type: string
+        required: false
+        description: Comments
+      - name: attestation_status
+        label: Attestation Status
+        type: enum
+        required: false
+        description: Attestation Status
+      - name: serial_number
+        label: Serial number
+        type: string
+        required: false
+        description: Serial number
+      - name: monitor
+        label: Monitor
+        type: string
+        required: false
+        description: Monitor
+      - name: model_id
+        label: Model ID
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: ip_address
+        label: IP Address
+        type: string
+        required: false
+        description: IP Address
+      - name: duplicate_of
+        label: Duplicate Of
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: cost_cc
+        label: Cost currency
+        type: enum
+        required: false
+        description: Cost currency
+      - name: support_group
+        label: Support group
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: price_unit
+        label: Price unit
+        type: string
+        required: false
+        description: Price unit
+      - name: sn_vul_qualys_host_id
+        label: Qualys host ID
+        type: string
+        required: false
+        description: Qualys host ID
+      - name: maintenance_schedule
+        label: Maintenance schedule
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: prerequisites
+        label: Prerequisites
+        type: string
+        required: false
+        description: Prerequisites
+      - name: business_relation_manager
+        label: Business relation manager
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+    relationships: []
   - name: change_request
     label: change_request
     description: 'Imported from ServiceNow table: change_request'
     properties:
-      - name: number
-        label: Number
+      - name: chg_model
+        label: Model
         type: string
-        required: true
-        description: Change number
+        required: false
+        description: Reference to [object Object] (external)
+      - name: requested_by
+        label: Requested by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: software_model
+        label: Release version
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: risk_value
+        label: Risk value
+        type: string
+        required: false
+        description: Risk value
+      - name: conflict_last_run
+        label: Conflict last run
+        type: string
+        required: false
+        description: Conflict last run
+      - name: outside_maintenance_schedule
+        label: Outside maintenance schedule
+        type: string
+        required: false
+        description: Outside maintenance schedule
+      - name: production_system
+        label: Production system
+        type: string
+        required: false
+        description: Production system
+      - name: end_date
+        label: Planned end date
+        type: string
+        required: false
+        description: Planned end date
+      - name: review_comments
+        label: Review comments
+        type: string
+        required: false
+        description: Review comments
       - name: type
         label: Type
         type: enum
         required: false
-        description: Change type
-      - name: state
-        label: State
+        description: Type
+        enumValues:
+          - emergency
+          - standard
+          - model
+          - normal
+      - name: requested_by_date
+        label: Requested by date
+        type: string
+        required: false
+        description: Requested by date
+      - name: review_date
+        label: Review date
+        type: string
+        required: false
+        description: Review date
+      - name: risk_impact_analysis
+        label: Risk and impact analysis
+        type: string
+        required: false
+        description: Risk and impact analysis
+      - name: samp_change_projection_summary
+        label: Change Projection Summary
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: phase
+        label: Phase
         type: enum
-        required: true
-        description: Change state
+        required: false
+        description: Phase
+        enumValues:
+          - requested
+          - requested
+          - requested
+          - requested
+          - requested
+          - requested
+          - requested
+          - requested
+          - build
+          - build
+          - build
+          - build
+          - build
+          - build
+          - build
+          - build
+          - plan
+          - plan
+          - plan
+          - plan
+          - plan
+          - plan
+          - plan
+          - plan
+          - accept
+          - accept
+          - accept
+          - accept
+          - accept
+          - accept
+          - accept
+          - accept
+      - name: cab_required
+        label: CAB required
+        type: string
+        required: false
+        description: CAB required
+      - name: justification
+        label: Justification
+        type: string
+        required: false
+        description: Justification
+      - name: on_hold_task
+        label: On Hold Change Tasks
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: phase_state
+        label: Phase state
+        type: enum
+        required: false
+        description: Phase state
+        enumValues:
+          - open
+          - approved
+          - on hold
+          - open
+          - approved
+          - testing
+          - on hold
+          - work in progress
+          - rejected
+          - complete
+          - work in progress
+          - rejected
+          - on hold
+          - complete
+          - approved
+          - on hold
+          - open
+          - approved
+          - testing
+          - complete
+          - open
+          - rejected
+          - complete
+          - work in progress
+          - rejected
+          - implementation
+          - work in progress
+      - name: test_plan
+        label: Test plan
+        type: string
+        required: false
+        description: Test plan
+      - name: on_hold
+        label: On hold
+        type: string
+        required: false
+        description: On hold
+      - name: devops_change
+        label: DevOps change
+        type: string
+        required: false
+        description: DevOps change
+      - name: std_change_producer_version
+        label: Standard Change Template version
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: conflict_status
+        label: Conflict status
+        type: enum
+        required: false
+        description: Conflict status
+        enumValues:
+          - Conflict
+          - No Conflict
+          - Not Run
+      - name: reason
+        label: Reason
+        type: enum
+        required: false
+        description: Reason
+        enumValues:
+          - Location changed
+          - Problem resolution
+          - Software upgrade
+          - Product or service changed
+          - User requested
+          - Network requirements
+          - Other
+          - New or removed CI
+          - Business requirements
+          - Hardware upgrade
+          - Legislation
+      - name: start_date
+        label: Planned start date
+        type: string
+        required: false
+        description: Planned start date
+      - name: review_status
+        label: Review status
+        type: enum
+        required: false
+        description: Review status
+        enumValues:
+          - '1'
+          - '2'
+      - name: copied_from
+        label: Copied from
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: scope
+        label: Scope
+        type: enum
+        required: false
+        description: Scope
+        enumValues:
+          - '2'
+          - '3'
+          - '4'
+          - '1'
+          - '5'
+      - name: cab_delegate
+        label: CAB delegate
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: implementation_plan
+        label: Implementation plan
+        type: string
+        required: false
+        description: Implementation plan
+      - name: close_code
+        label: Close code
+        type: enum
+        required: false
+        description: Close code
+        enumValues:
+          - successful
+          - successful_issues
+          - unsuccessful
+      - name: category
+        label: Category
+        type: enum
+        required: false
+        description: Category
+        enumValues:
+          - Service
+          - Telecom
+          - Hardware
+          - System Software
+          - Documentation
+          - Applications Software
+          - Other
+          - Cloud Migration
+          - DevOps
+          - Software
+          - Network
+      - name: cab_date_time
+        label: CAB date/time
+        type: string
+        required: false
+        description: CAB date/time
+      - name: backout_plan
+        label: Backout plan
+        type: string
+        required: false
+        description: Backout plan
+      - name: on_hold_reason
+        label: On hold reason
+        type: string
+        required: false
+        description: On hold reason
       - name: risk
         label: Risk
         type: enum
         required: false
-        description: Risk level
-      - name: start_date
-        label: Planned Start
-        type: date
+        description: Risk
+        enumValues:
+          - '3'
+          - '4'
+          - '2'
+      - name: cab_recommendation
+        label: CAB recommendation
+        type: string
         required: false
-        description: Planned start
-      - name: end_date
-        label: Planned End
-        type: date
+        description: CAB recommendation
+      - name: change_plan
+        label: Change plan
+        type: string
         required: false
-        description: Planned end
-    relationships:
-      - name: assignment_group
-        label: Assignment Group
-        targetType: sys_user_group
-        cardinality: many_to_one
-        description: Requesting group
+        description: Change plan
+      - name: unauthorized
+        label: Unauthorized
+        type: string
+        required: false
+        description: Unauthorized
+      - name: probability
+        label: Success probability
+        type: enum
+        required: false
+        description: Success probability
+        enumValues:
+          - '3'
+          - '1'
+          - '2'
+    relationships: []
   - name: problem
     label: problem
     description: 'Imported from ServiceNow table: problem'
     properties:
-      - name: number
-        label: Number
+      - name: rfc
+        label: Change request
         type: string
-        required: true
-        description: Problem number
-      - name: state
-        label: State
-        type: enum
-        required: true
-        description: Problem state
-      - name: known_error
-        label: Known Error
-        type: boolean
         required: false
-        description: Is known error
-    relationships:
-      - name: cmdb_ci
-        label: Configuration Item
-        targetType: cmdb_ci
-        cardinality: many_to_one
-        description: Root cause CI
-      - name: assignment_group
-        label: Assignment Group
-        targetType: sys_user_group
-        cardinality: many_to_one
-        description: Investigating team
+        description: Reference to [object Object] (external)
+      - name: prb_model
+        label: Model
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: fix_by
+        label: Fix by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: confirmed_at
+        label: Confirmed
+        type: string
+        required: false
+        description: Confirmed
+      - name: reopened_at
+        label: Last reopened at
+        type: string
+        required: false
+        description: Last reopened at
+      - name: resolution_code
+        label: Resolution code
+        type: enum
+        required: false
+        description: Resolution code
+        enumValues:
+          - risk_accepted
+          - canceled
+          - duplicate
+          - fix_applied
+      - name: fix_at
+        label: Fix
+        type: string
+        required: false
+        description: Fix
+      - name: reopened_by
+        label: Last reopened by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: resolved_at
+        label: Resolved
+        type: string
+        required: false
+        description: Resolved
+      - name: confirmed_by
+        label: Confirmed by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: resolved_by
+        label: Resolved by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: known_error
+        label: Known error
+        type: string
+        required: false
+        description: Known error
+      - name: workaround_applied
+        label: Workaround applied
+        type: string
+        required: false
+        description: Workaround applied
+      - name: fix_notes
+        label: Fix notes
+        type: string
+        required: false
+        description: Fix notes
+      - name: cause_notes
+        label: Cause notes
+        type: string
+        required: false
+        description: Cause notes
+      - name: workaround
+        label: Workaround
+        type: string
+        required: false
+        description: Workaround
+      - name: category
+        label: Category
+        type: enum
+        required: false
+        description: Category
+        enumValues:
+          - hardware
+          - network
+          - database
+          - software
+      - name: fix_communicated_at
+        label: Fix communicated
+        type: string
+        required: false
+        description: Fix communicated
+      - name: duplicate_of
+        label: Duplicate of
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: workaround_communicated_by
+        label: Workaround communicated by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: subcategory
+        label: Subcategory
+        type: enum
+        required: false
+        description: Subcategory
+        enumValues:
+          - vpn
+          - cpu
+          - monitor
+          - sql server
+          - wireless
+          - disk
+          - mouse
+          - dhcp
+          - email
+          - keyboard
+          - db2
+          - dns
+          - os
+          - memory
+          - oracle
+          - ip address
+      - name: workaround_communicated_at
+        label: Workaround communicated
+        type: string
+        required: false
+        description: Workaround communicated
+      - name: fix_communicated_by
+        label: Fix communicated by
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: major_problem
+        label: Major problem
+        type: string
+        required: false
+        description: Major problem
+      - name: primary_known_error_article
+        label: Primary Known Error article
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: reopen_count
+        label: Reopen count
+        type: string
+        required: false
+        description: Reopen count
+      - name: problem_state
+        label: Problem state
+        type: enum
+        required: false
+        description: Problem state
+        enumValues:
+          - '102'
+          - '101'
+          - '103'
+          - '106'
+          - '107'
+          - '104'
+      - name: first_reported_by_task
+        label: Origin task
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: related_incidents
+        label: Related Incidents
+        type: string
+        required: false
+        description: Related Incidents
+      - name: review_outcome
+        label: Major problem review notes
+        type: string
+        required: false
+        description: Major problem review notes
+    relationships: []
   - name: sys_user_group
     label: sys_user_group
     description: 'Imported from ServiceNow table: sys_user_group'
     properties:
+      - name: hourly_rate
+        label: Hourly rate
+        type: string
+        required: false
+        description: Hourly rate
+      - name: include_members
+        label: Include members
+        type: string
+        required: false
+        description: Include members
+      - name: parent
+        label: Parent
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: email
+        label: Group email
+        type: string
+        required: false
+        description: Group email
+      - name: type
+        label: Type
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: source
+        label: Source
+        type: string
+        required: false
+        description: Source
+      - name: default_assignee
+        label: Default assignee
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: vendors
+        label: Vendors
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: average_daily_fte
+        label: Average Daily FTE Hours/Hours Per Person Day
+        type: string
+        required: false
+        description: Average Daily FTE Hours/Hours Per Person Day
+      - name: points
+        label: Points
+        type: string
+        required: false
+        description: Points
+      - name: manager
+        label: Manager
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
+      - name: active
+        label: Active
+        type: string
+        required: false
+        description: Active
       - name: name
         label: Name
         type: string
-        required: true
-        description: Group name
-      - name: type
-        label: Type
-        type: enum
         required: false
-        description: Group type
+        description: Name
+      - name: roles
+        label: Roles
+        type: string
+        required: false
+        description: Roles
+      - name: description
+        label: Description
+        type: string
+        required: false
+        description: Description
+      - name: exclude_manager
+        label: Exclude manager
+        type: string
+        required: false
+        description: Exclude manager
+      - name: cost_center
+        label: Cost center
+        type: string
+        required: false
+        description: Reference to [object Object] (external)
     relationships: []
