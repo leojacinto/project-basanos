@@ -6,43 +6,35 @@
 
 This project brings that idea to AI agents.
 
-## Current Status
-
-Basanos is a working prototype. Here is what exists today vs what is planned:
-
-| Area | Status | Notes |
-|------|--------|-------|
-| **ServiceNow connector** | Implemented | REST API, schema import, entity sync, MCP proxy gateway |
-| **Rules engine** | Implemented | YAML-driven, evaluate/block/allow with audit trail |
-| **Rule discovery** | Implemented | Heuristic pattern analysis (change freezes, SLA breaches, P1 reopen rates). Not ML - these are coded algorithms that scan your data for known patterns. |
-| **Human-in-the-loop lifecycle** | Implemented | Candidate / promoted / disabled with dashboard controls |
-| **Jira integration** | Demo only | Mock Jira data used to demonstrate cross-system enforcement. No production Jira connector yet. |
-| **Salesforce integration** | Planned | Architecture supports it; no connector implemented. |
-| **Agent client embedding** | Planned | MCP server runs and can be called by any MCP client, but no pre-built Claude/GPT integrations ship with the repo. |
-| **A2A protocol** | Planned | Agent card types defined; no runtime A2A server yet. |
-
-The README describes the design direction alongside what is implemented. Sections below call out where something is planned vs shipped.
-
 ## The Problem
 
 AI agents can call APIs across ServiceNow, Jira, Salesforce, and more. But no single system knows what the others are doing. ServiceNow business rules cannot see Jira deploys. Jira automation cannot see ServiceNow change freezes. When agents operate across these systems, there is no shared enforcement layer.
 
 System prompts say "please don't resolve incidents during a change freeze." Basanos says `BLOCKED` with evidence, entity IDs, and an audit trail.
 
-## What Basanos Does
+## What Works Today
 
-Basanos sits between your agents and enterprise systems. It does three things:
+Basanos is a working prototype. Everything below is implemented and runnable.
 
-### 1. Discovers rules from your data
-Connects to a live system (currently ServiceNow), runs heuristic pattern analysis (P1 reopen rates, change freezes, SLA breaches, CI failure patterns), and surfaces rule candidates. This is not ML or AI inference - it is coded algorithms that scan your data for known anti-patterns. The value is surfacing guardrails you have not built yet, from your actual data.
+**ServiceNow connector** - connects to a live ServiceNow instance via REST API. Imports table schemas from `sys_dictionary`, syncs live entities, and acts as an MCP proxy gateway that intercepts tool calls, enriches context, and enforces rules before forwarding to ServiceNow's native MCP Server.
 
-### 2. Enforces rules at runtime
-This is not context injection. Basanos does not dump rules into a system prompt and hope the LLM follows them. It acts as a **proxy gateway** that intercepts tool calls, queries live systems for current state (API calls, not file-path matching), evaluates only the promoted rules that match the intended action, and returns a `BLOCK` or `ALLOW` verdict before the action executes. A blocked action never reaches the target system.
+**Rules engine** - YAML-driven. Evaluates promoted rules against live system state per-request and returns `BLOCK` or `ALLOW` verdicts with evidence and audit trail. This is not context injection - a blocked action never reaches the target system. Only promoted rules matching the intended action are checked, not every rule in the system.
 
-*Today: ServiceNow enforcement works against live instances. Jira enforcement is demonstrated with mock data. The architecture supports adding connectors for any REST-based system.*
+**Rule discovery** - heuristic pattern analysis that scans your data for known anti-patterns (change freezes, SLA breaches, P1 reopen rates, CI failure patterns). This is not ML or AI inference - these are coded algorithms. The value is surfacing guardrails you have not built yet, from your actual data.
 
-### 3. Keeps humans in the loop
-Discovered rules start as candidates. A human reviews and promotes them before they enforce. No rule fires without human review. Demote or disable at any time.
+**Human-in-the-loop lifecycle** - discovered rules start as candidates. A human reviews and promotes them before they enforce. No rule fires without human review. Demote or disable at any time from the dashboard.
+
+**Cross-system demo** - mock Jira data demonstrates how enforcement works across system boundaries. The demo shows both directions: ServiceNow catching what Jira missed, and Jira catching what ServiceNow missed.
+
+## What is Next
+
+These are design goals, not shipped features.
+
+- **Jira connector** - production connector to query Jira REST API for deploys, sprints, and status. Currently demo-only with mock data.
+- **Salesforce connector** - same pattern as ServiceNow. Architecture supports it; no connector implemented yet.
+- **Agent client integrations** - Basanos runs as an MCP server that any MCP client can call, but no pre-built Claude/GPT integrations ship with the repo yet.
+- **A2A protocol** - agent card types are defined; no runtime A2A server yet. This will allow other agents to discover what Basanos knows and can enforce.
+- **Additional discovery heuristics** - more pattern detectors beyond the current set (e.g., assignment group capacity, approval chain violations).
 
 ## Architecture
 
