@@ -11,7 +11,7 @@ constraints:
     severity: block
     status: candidate
     description: >-
-      Found 1 recent change requests. Incident resolution during active change windows should be blocked. [Evidence: 1
+      Found 3 recent change requests. Incident resolution during active change windows should be blocked. [Evidence: 3
       change requests found in recent history]
     conditions: []
     violationMessage: An active change freeze is in effect. Escalate to change management.
@@ -26,8 +26,8 @@ constraints:
     severity: warn
     status: candidate
     description: >-
-      67% of active P1 incidents have been reassigned. P1 reassignment disrupts war rooms and escalation chains.
-      [Evidence: 3 active P1s, 2 reassigned (67% rate)]
+      25% of active P1 incidents have been reassigned. P1 reassignment disrupts war rooms and escalation chains.
+      [Evidence: 8 active P1s, 2 reassigned (25% rate)]
     conditions: []
     violationMessage: This is a P1 incident. Confirm with incident commander before reassigning.
     satisfiedMessage: Standard reassignment procedures apply.
@@ -41,8 +41,121 @@ constraints:
     severity: warn
     status: candidate
     description: >-
-      Found 2 breached SLA records. Incidents with breached SLAs should be reviewed before closure. [Evidence: 2
+      Found 4 breached SLA records. Incidents with breached SLAs should be reviewed before closure. [Evidence: 4
       breached SLA records found]
     conditions: []
     violationMessage: This incident breached an SLA. Review required before closing.
     satisfiedMessage: No SLA breach detected.
+  - id: servicenow-demo:discovered:unassigned_high_priority
+    name: Unassigned High Priority Incidents (Discovered)
+    domain: servicenow-demo
+    appliesTo:
+      - incident
+    relevantActions:
+      - assign
+      - auto_resolve
+    severity: warn
+    status: candidate
+    description: >-
+      Found 4 P1/P2 incidents without a named assignee. High priority incidents need individual ownership, not just
+      group assignment. [Evidence: 4 of 8 active P1/P2 incidents are unassigned]
+    conditions: []
+    violationMessage: Unassigned high priority incidents exist. Ensure a named owner before taking action.
+    satisfiedMessage: All high priority incidents have assigned owners.
+  - id: servicenow-demo:discovered:incident_reopen_rate
+    name: Incident Reopen Rate (Discovered)
+    domain: servicenow-demo
+    appliesTo:
+      - incident
+    relevantActions:
+      - resolve
+      - close
+    severity: warn
+    status: candidate
+    description: >-
+      3 of 8 active incidents have been reopened (38% reopen rate). High reopen rates indicate premature closures.
+      [Evidence: 3 reopened out of 8 active (38%)]
+    conditions: []
+    violationMessage: High reopen rate detected. Verify the fix addresses root cause.
+    satisfiedMessage: Reopen rate is within acceptable range.
+  - id: servicenow-demo:discovered:major_incident_no_problem
+    name: Major Incident Without Problem Record (Discovered)
+    domain: servicenow-demo
+    appliesTo:
+      - incident
+      - problem
+    relevantActions:
+      - close
+    severity: warn
+    status: candidate
+    description: >-
+      Found 8 resolved/closed P1 incidents without a linked problem record. Major incidents should trigger problem
+      management for root cause analysis. [Evidence: 8 resolved P1s without problem records]
+    conditions: []
+    violationMessage: This major incident has no linked problem record. Create a problem for root cause analysis.
+    satisfiedMessage: Problem record exists for root cause tracking.
+  - id: servicenow-demo:discovered:recurring_ci_failures
+    name: Recurring CI Failures (Discovered)
+    domain: servicenow-demo
+    appliesTo:
+      - incident
+      - change_request
+    relevantActions:
+      - assign
+      - resolve
+    severity: warn
+    status: candidate
+    description: >-
+      1 CIs have >3 active incidents. Worst: "db-cluster-prod-03" with 4 incidents. Systemic instability needs problem
+      management investigation. [Evidence: 1 CIs with recurring failures, worst: db-cluster-prod-03 (4 incidents)]
+    conditions: []
+    violationMessage: This CI has recurring failures. Consider problem investigation before further changes.
+    satisfiedMessage: No recurring failure pattern detected for this CI.
+  - id: servicenow-demo:discovered:failed_changes_on_ci
+    name: Recent Failed Changes on CI (Discovered)
+    domain: servicenow-demo
+    appliesTo:
+      - change_request
+    relevantActions:
+      - approve
+      - implement
+    severity: block
+    status: candidate
+    description: >-
+      Found 3 failed change(s). Affected CIs: mail-server-prod-01, db-cluster-prod-03, load-balancer-01. CIs with recent
+      failures are in a fragile state. [Evidence: 3 failed changes on 3 CI(s)]
+    conditions: []
+    violationMessage: Recent failed change on this CI. Review failure before approving new changes.
+    satisfiedMessage: No recent failed changes on this CI.
+  - id: servicenow-demo:discovered:stale_incidents
+    name: Stale Incident Warning (Discovered)
+    domain: servicenow-demo
+    appliesTo:
+      - incident
+    relevantActions:
+      - auto_resolve
+      - close
+    severity: warn
+    status: candidate
+    description: >-
+      Found 1 active incidents with no updates in 7+ days. Stale incidents may be stuck or forgotten. [Evidence: 1
+      incidents with no update in 7+ days]
+    conditions: []
+    violationMessage: Stale incidents detected. Investigate before auto-resolving.
+    satisfiedMessage: No stale incidents found.
+  - id: servicenow-demo:discovered:after_hours_change
+    name: After-Hours Change Risk (Discovered)
+    domain: servicenow-demo
+    appliesTo:
+      - change_request
+    relevantActions:
+      - implement
+      - approve
+    severity: warn
+    status: candidate
+    description: >-
+      Found 1 scheduled normal change(s) without approval. Normal changes require CAB or peer review before
+      implementation. [Evidence: 1 unapproved normal changes scheduled]
+    conditions: []
+    violationMessage: Unapproved normal change detected. Route through change approval before implementation.
+    satisfiedMessage: All scheduled changes have proper approval.

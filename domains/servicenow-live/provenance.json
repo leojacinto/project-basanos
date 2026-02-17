@@ -1,6 +1,6 @@
 {
   "source": "https://demoalectriallwfza130373.service-now.com/",
-  "importedAt": "2026-02-17T04:46:19.465Z",
+  "importedAt": "2026-02-17T05:05:09.293Z",
   "pipeline": "basanos cli import",
   "tablesImported": 6,
   "fieldsImported": 310,
@@ -13,7 +13,7 @@
     "problem",
     "sys_user_group"
   ],
-  "discoveredAt": "2026-02-17T04:46:22.414Z",
+  "discoveredAt": "2026-02-17T05:05:12.320Z",
   "constraintsDiscovered": 4,
   "discoveryEvidence": [
     {

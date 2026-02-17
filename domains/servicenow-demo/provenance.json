@@ -1,6 +1,6 @@
 {
   "source": "http://localhost:8090",
-  "importedAt": "2026-02-17T04:26:23.850Z",
+  "importedAt": "2026-02-17T05:09:44.677Z",
   "pipeline": "basanos cli import",
   "tablesImported": 6,
   "fieldsImported": 32,
@@ -13,26 +13,68 @@
     "problem",
     "sys_user_group"
   ],
-  "discoveredAt": "2026-02-17T04:26:23.859Z",
-  "constraintsDiscovered": 3,
+  "discoveredAt": "2026-02-17T05:09:44.688Z",
+  "constraintsDiscovered": 10,
   "discoveryEvidence": [
     {
       "id": "servicenow-demo:discovered:change_freeze",
       "name": "Active Change Freeze (Discovered)",
       "severity": "block",
-      "evidence": "1 change requests found in recent history"
+      "evidence": "3 change requests found in recent history"
     },
     {
       "id": "servicenow-demo:discovered:p1_reassignment",
       "name": "P1 Reassignment Caution (Discovered)",
       "severity": "warn",
-      "evidence": "3 active P1s, 2 reassigned (67% rate)"
+      "evidence": "8 active P1s, 2 reassigned (25% rate)"
     },
     {
       "id": "servicenow-demo:discovered:sla_breach",
       "name": "SLA Breach Review (Discovered)",
       "severity": "warn",
-      "evidence": "2 breached SLA records found"
+      "evidence": "4 breached SLA records found"
+    },
+    {
+      "id": "servicenow-demo:discovered:unassigned_high_priority",
+      "name": "Unassigned High Priority Incidents (Discovered)",
+      "severity": "warn",
+      "evidence": "4 of 8 active P1/P2 incidents are unassigned"
+    },
+    {
+      "id": "servicenow-demo:discovered:incident_reopen_rate",
+      "name": "Incident Reopen Rate (Discovered)",
+      "severity": "warn",
+      "evidence": "3 reopened out of 8 active (38%)"
+    },
+    {
+      "id": "servicenow-demo:discovered:major_incident_no_problem",
+      "name": "Major Incident Without Problem Record (Discovered)",
+      "severity": "warn",
+      "evidence": "8 resolved P1s without problem records"
+    },
+    {
+      "id": "servicenow-demo:discovered:recurring_ci_failures",
+      "name": "Recurring CI Failures (Discovered)",
+      "severity": "warn",
+      "evidence": "1 CIs with recurring failures, worst: db-cluster-prod-03 (4 incidents)"
+    },
+    {
+      "id": "servicenow-demo:discovered:failed_changes_on_ci",
+      "name": "Recent Failed Changes on CI (Discovered)",
+      "severity": "block",
+      "evidence": "3 failed changes on 3 CI(s)"
+    },
+    {
+      "id": "servicenow-demo:discovered:stale_incidents",
+      "name": "Stale Incident Warning (Discovered)",
+      "severity": "warn",
+      "evidence": "1 incidents with no update in 7+ days"
+    },
+    {
+      "id": "servicenow-demo:discovered:after_hours_change",
+      "name": "After-Hours Change Risk (Discovered)",
+      "severity": "warn",
+      "evidence": "1 unapproved normal changes scheduled"
     }
   ]
 }
