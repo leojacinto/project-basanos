@@ -8,6 +8,7 @@
  */
 
 import express from "express";
+import net from "net";
 import { existsSync, readdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -123,9 +124,39 @@ app.get("/", (_req, res) => {
   res.type("html").send(dashboardHtml());
 });
 
-const PORT = parseInt(process.env.PORT || "3000", 10);
-app.listen(PORT, () => {
-  console.log(`Basanos Dashboard running at http://localhost:${PORT}`);
+function findOpenPort(startPort: number, maxAttempts = 20): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let attempt = 0;
+    function tryPort(port: number) {
+      const probe = net.createServer();
+      probe.once("error", () => {
+        attempt++;
+        if (attempt >= maxAttempts) {
+          reject(new Error(`No open port found in range ${startPort}-${startPort + maxAttempts}`));
+        } else {
+          tryPort(port + 1);
+        }
+      });
+      probe.once("listening", () => {
+        probe.close(() => resolve(port));
+      });
+      probe.listen(port);
+    }
+    tryPort(startPort);
+  });
+}
+
+const preferredPort = parseInt(process.env.BASANOS_PORT || "3001", 10);
+findOpenPort(preferredPort).then((port) => {
+  app.listen(port, () => {
+    if (port !== preferredPort) {
+      console.log(`Port ${preferredPort} in use, found open port ${port}`);
+    }
+    console.log(`Basanos Dashboard running at http://localhost:${port}`);
+  });
+}).catch((err) => {
+  console.error("Could not find an open port:", err);
+  process.exit(1);
 });
 
 // ── Dashboard HTML ────────────────────────────────────────────
