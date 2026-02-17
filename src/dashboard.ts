@@ -8,28 +8,58 @@
  */
 
 import express from "express";
+import { existsSync, readdirSync } from "fs";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
 import { OntologyEngine } from "./ontology/engine.js";
 import { ConstraintEngine } from "./constraints/engine.js";
 import { validateDomainSchema } from "./ontology/schema.js";
-import { itsmDomain } from "./domains/itsm/ontology.js";
-import { itsmConstraints } from "./domains/itsm/constraints.js";
+import { loadDomainFromYaml, loadConstraintsFromYaml } from "./loader.js";
 import { generateAgentCard } from "./a2a/types.js";
 
-// ── Initialize engines ────────────────────────────────────────
+// ── Initialize engines (load all YAML domains) ───────────────
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const domainsDir = resolve(__dirname, "..", "domains");
 
 const ontologyEngine = new OntologyEngine();
 const constraintEngine = new ConstraintEngine();
 
-const errors = validateDomainSchema(itsmDomain);
-if (errors.length > 0) {
-  console.error("Schema validation errors:", errors);
-  process.exit(1);
+if (existsSync(domainsDir)) {
+  for (const entry of readdirSync(domainsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const domainDir = resolve(domainsDir, entry.name);
+    const ontologyYaml = resolve(domainDir, "ontology.yaml");
+    const constraintsYaml = resolve(domainDir, "constraints.yaml");
+    const discoveredYaml = resolve(domainDir, "discovered-constraints.yaml");
+
+    if (existsSync(ontologyYaml)) {
+      console.log(`Loading domain: ${entry.name}`);
+      const domain = loadDomainFromYaml(ontologyYaml);
+      const errors = validateDomainSchema(domain);
+      if (errors.length > 0) {
+        console.warn(`  Validation warnings for ${entry.name}:`, errors);
+      }
+      ontologyEngine.registerDomain(domain);
+    }
+
+    if (existsSync(constraintsYaml)) {
+      console.log(`  Loading constraints: ${constraintsYaml}`);
+      for (const c of loadConstraintsFromYaml(constraintsYaml)) {
+        constraintEngine.register(c);
+      }
+    }
+
+    if (existsSync(discoveredYaml)) {
+      console.log(`  Loading discovered constraints: ${discoveredYaml}`);
+      for (const c of loadConstraintsFromYaml(discoveredYaml)) {
+        constraintEngine.register(c);
+      }
+    }
+  }
 }
 
-ontologyEngine.registerDomain(itsmDomain);
-for (const c of itsmConstraints) {
-  constraintEngine.register(c);
-}
+console.log(`Loaded ${ontologyEngine.getDomains().length} domain(s), ${constraintEngine.getConstraints("itsm").length + constraintEngine.getConstraints("servicenow").length} constraint(s)`);
 
 // ── Express API ───────────────────────────────────────────────
 
@@ -357,10 +387,16 @@ function dashboardHtml(): string {
       &#x1F0CF; Basanos
       <span class="subtitle">Semantic Ontology Dashboard</span>
     </h1>
-    <button class="theme-toggle" onclick="toggleTheme()">
-      <span id="theme-icon">&#x2600;&#xFE0F;</span>
-      <span id="theme-label">Light</span>
-    </button>
+    <div style="display:flex;gap:0.75rem;align-items:center;">
+      <select id="domain-select" onchange="switchDomain(this.value)" style="
+        background:var(--bg-card);border:1px solid var(--border);border-radius:0.5rem;
+        padding:0.4rem 0.75rem;color:var(--text);font-size:0.9rem;cursor:pointer;
+      "></select>
+      <button class="theme-toggle" onclick="toggleTheme()">
+        <span id="theme-icon">&#x2600;&#xFE0F;</span>
+        <span id="theme-label">Light</span>
+      </button>
+    </div>
   </header>
   <nav>
     <button class="active" onclick="showTab('overview')">Overview</button>
@@ -376,21 +412,41 @@ function dashboardHtml(): string {
   </main>
 
 <script>
+  let allDomains = [];
   let domainData = null;
   let constraintData = null;
   let agentCardData = null;
   let currentTab = 'overview';
+  let currentDomain = '';
 
   async function init() {
+    const listRes = await fetch('/api/domains');
+    allDomains = await listRes.json();
+    const select = document.getElementById('domain-select');
+    select.innerHTML = allDomains.map(d =>
+      \`<option value="\${d.name}">\${d.label} (\${d.entityTypeCount} types)</option>\`
+    ).join('');
+    if (allDomains.length > 0) {
+      currentDomain = allDomains[0].name;
+      await loadDomain(currentDomain);
+    }
+  }
+
+  async function switchDomain(name) {
+    currentDomain = name;
+    await loadDomain(name);
+  }
+
+  async function loadDomain(name) {
     const [domainRes, constraintRes, cardRes] = await Promise.all([
-      fetch('/api/domains/itsm'),
-      fetch('/api/domains/itsm/constraints'),
+      fetch(\`/api/domains/\${name}\`),
+      fetch(\`/api/domains/\${name}/constraints\`),
       fetch('/api/agent-card'),
     ]);
     domainData = await domainRes.json();
     constraintData = await constraintRes.json();
     agentCardData = await cardRes.json();
-    showTab('overview');
+    showTab(currentTab);
   }
 
   function toggleTheme() {
@@ -493,7 +549,7 @@ function dashboardHtml(): string {
   }
 
   async function showEntityDetail(typeName) {
-    const res = await fetch(\`/api/domains/itsm/entities/\${typeName}\`);
+    const res = await fetch(\`/api/domains/\${currentDomain}/entities/\${typeName}\`);
     const data = await res.json();
     const detail = document.getElementById('entity-detail');
     detail.innerHTML = \`

@@ -71,45 +71,85 @@ When another agent discovers Basanos via A2A, it sees typed capabilities with pr
 ## Quick Start
 
 ```bash
-# Clone
+# Clone and build
 git clone https://github.com/leojacinto/project-basanos.git
 cd project-basanos
+npm install && npm run build
 
-# Install dependencies
-npm install
-
-# Build
-npm run build
-
-# Run the MCP server
+# Run the MCP server (serves hand-crafted ITSM ontology)
 npm start
+
+# Explore the ontology visually (multi-domain, light/dark mode)
+npm run dashboard
 
 # Inspect with MCP Inspector
 npm run inspect
+```
+
+### Connect to a live ServiceNow instance
+
+```bash
+# Configure credentials
+cp .env.example .env
+# Edit .env with your ServiceNow instance URL, username, password
+
+# Run the full pipeline: connect, import schemas, sync entities, discover constraints
+npm run cli -- full
+
+# Or run steps individually
+npm run cli -- connect     # Test connection
+npm run cli -- import      # Import table schemas to YAML
+npm run cli -- sync        # Sync live entities into Basanos
+npm run cli -- discover    # Discover constraints from data patterns
+```
+
+### Test with the mock ServiceNow server
+
+```bash
+npm run mock-snow          # Starts mock at http://localhost:8090
+# In another terminal, with .env pointing to localhost:8090:
+npm run cli -- full
 ```
 
 ## Project Structure
 
 ```
 src/
-├── index.ts                 # MCP server entry point (6 tools, 2 resources)
+├── index.ts                 # MCP server entry point (6 tools, dynamic resources)
+├── cli.ts                   # CLI: connect, import, sync, discover
+├── dashboard.ts             # Web UI with multi-domain support + light/dark mode
+├── loader.ts                # YAML schema/constraint loader
 ├── ontology/
 │   ├── engine.ts            # Ontology resolution and traversal
 │   ├── types.ts             # Core ontology type system
 │   └── schema.ts            # Schema loading and validation
 ├── constraints/
 │   ├── engine.ts            # Constraint evaluation engine with audit trail
-│   └── types.ts             # Constraint type definitions
-├── domains/
-│   └── itsm/
-│       ├── ontology.ts      # ITSM entity and relationship definitions
-│       └── constraints.ts   # ITSM business logic constraints
+│   ├── types.ts             # Constraint type definitions
+│   └── rule-evaluator.ts    # Declarative rule engine (YAML conditions)
+├── connectors/
+│   ├── servicenow.ts        # ServiceNow REST API connector
+│   ├── schema-importer.ts   # sys_dictionary → ontology.yaml
+│   ├── entity-sync.ts       # Live table data → Basanos entities
+│   └── constraint-discovery.ts  # Data pattern analysis → suggested constraints
+├── a2a/
+│   └── types.ts             # A2A agent card types and generation
+├── mock/
+│   └── servicenow-server.ts # Mock ServiceNow REST API for testing
 ├── server/
 │   ├── resources.ts         # MCP resource handlers
-│   └── tools.ts             # MCP tool handlers with constraint metadata
+│   └── tools.ts             # MCP tool handler reference
 └── test/
     ├── smoke.ts             # 32-assertion engine test suite
+    ├── yaml-loader.ts       # 23-assertion YAML loader tests
     └── scenario-autonomous.ts  # 3am incident demo (with vs without Basanos)
+domains/
+├── itsm/                    # Hand-crafted ITSM ontology (YAML)
+│   ├── ontology.yaml
+│   └── constraints.yaml
+└── servicenow-live/         # Auto-imported from ServiceNow (generated)
+    ├── ontology.yaml
+    └── discovered-constraints.yaml
 docs/
 └── DIFFERENTIATORS.md       # Critical analysis: why Basanos vs Claude Desktop
 ```
