@@ -1,6 +1,6 @@
 {
   "source": "https://demoalectriallwfza130373.service-now.com/",
-  "importedAt": "2026-02-17T05:05:09.293Z",
+  "importedAt": "2026-02-17T05:12:10.974Z",
   "pipeline": "basanos cli import",
   "tablesImported": 6,
   "fieldsImported": 310,
@@ -13,8 +13,8 @@
     "problem",
     "sys_user_group"
   ],
-  "discoveredAt": "2026-02-17T05:05:12.320Z",
-  "constraintsDiscovered": 4,
+  "discoveredAt": "2026-02-17T05:12:15.664Z",
+  "constraintsDiscovered": 9,
   "discoveryEvidence": [
     {
       "id": "servicenow-live:discovered:change_freeze",
@@ -39,6 +39,36 @@
       "name": "SLA Breach Review (Discovered)",
       "severity": "warn",
       "evidence": "100 breached SLA records found"
+    },
+    {
+      "id": "servicenow-live:discovered:unassigned_high_priority",
+      "name": "Unassigned High Priority Incidents (Discovered)",
+      "severity": "warn",
+      "evidence": "17 of 50 active P1/P2 incidents are unassigned"
+    },
+    {
+      "id": "servicenow-live:discovered:major_incident_no_problem",
+      "name": "Major Incident Without Problem Record (Discovered)",
+      "severity": "warn",
+      "evidence": "23 resolved P1s without problem records"
+    },
+    {
+      "id": "servicenow-live:discovered:recurring_ci_failures",
+      "name": "Recurring CI Failures (Discovered)",
+      "severity": "warn",
+      "evidence": "13 CIs with recurring failures, worst: Impact Calculation (208 incidents)"
+    },
+    {
+      "id": "servicenow-live:discovered:failed_changes_on_ci",
+      "name": "Recent Failed Changes on CI (Discovered)",
+      "severity": "block",
+      "evidence": "4 failed changes on 2 CI(s)"
+    },
+    {
+      "id": "servicenow-live:discovered:after_hours_change",
+      "name": "After-Hours Change Risk (Discovered)",
+      "severity": "warn",
+      "evidence": "18 unapproved normal changes scheduled"
     }
   ]
 }

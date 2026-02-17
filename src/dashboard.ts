@@ -736,17 +736,27 @@ function dashboardHtml(): string {
   let currentTab = 'overview';
   let currentDomain = '';
 
+  function rebuildDomainDropdown() {
+    var select = document.getElementById('domain-select');
+    select.innerHTML = allDomains.map(function(d) {
+      return '<option value="' + d.name + '"' + (d.name === currentDomain ? ' selected' : '') + '>' + d.label + ' (' + d.entityTypeCount + ' types)</option>';
+    }).join('');
+    select.value = currentDomain;
+  }
+
   async function init() {
     try {
       const listRes = await fetch('/api/domains');
       if (!listRes.ok) throw new Error('API returned ' + listRes.status);
       allDomains = await listRes.json();
-      const select = document.getElementById('domain-select');
-      select.innerHTML = allDomains.map(d =>
-        \`<option value="\${d.name}">\${d.label} (\${d.entityTypeCount} types)</option>\`
-      ).join('');
-      if (allDomains.length > 0) {
+      const saved = localStorage.getItem('basanos-domain');
+      if (saved && allDomains.find(d => d.name === saved)) {
+        currentDomain = saved;
+      } else if (allDomains.length > 0) {
         currentDomain = allDomains[0].name;
+      }
+      rebuildDomainDropdown();
+      if (allDomains.length > 0) {
         await loadDomain(currentDomain);
       } else {
         document.getElementById('content').innerHTML =
@@ -766,6 +776,7 @@ function dashboardHtml(): string {
 
   async function switchDomain(name) {
     currentDomain = name;
+    localStorage.setItem('basanos-domain', name);
     await loadDomain(name);
   }
 
@@ -801,6 +812,17 @@ function dashboardHtml(): string {
     document.getElementById('theme-label').textContent = saved === 'dark' ? 'Dark' : 'Light';
   }
 
+  function domainBanner() {
+    var d = allDomains.find(function(x) { return x.name === currentDomain; });
+    var label = d ? d.label : currentDomain;
+    return '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.75rem;margin-bottom:0.75rem;' +
+      'background:var(--card-bg);border:1px solid var(--border);border-radius:0.5rem;font-size:0.85rem;">' +
+      '<span style="font-weight:600;color:var(--text-secondary);">Domain:</span> ' +
+      '<span style="font-weight:700;color:var(--accent);">' + label + '</span>' +
+      '<span style="color:var(--text-secondary);font-size:0.75rem;">(' + currentDomain + ')</span>' +
+      '</div>';
+  }
+
   async function showTab(tab) {
     currentTab = tab;
     document.querySelectorAll('nav button').forEach((b, i) => {
@@ -808,14 +830,24 @@ function dashboardHtml(): string {
       b.classList.toggle('active', tabs[i] === tab);
     });
     const el = document.getElementById('content');
-    switch (tab) {
-      case 'overview': renderOverview(el); break;
-      case 'entities': renderEntities(el); break;
-      case 'constraints': renderConstraints(el); break;
-      case 'agent-card': renderAgentCard(el); break;
-      case 'audit': renderAudit(el); break;
-      case 'connect': await renderConnect(el); break;
-      case 'discovery-rules': await renderDiscoveryRules(el); break;
+    // Domain-specific tabs show the domain banner
+    const domainTabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit'];
+    if (domainTabs.includes(tab)) {
+      el.innerHTML = domainBanner();
+      var inner = document.createElement('div');
+      el.appendChild(inner);
+      switch (tab) {
+        case 'overview': renderOverview(inner); break;
+        case 'entities': renderEntities(inner); break;
+        case 'constraints': renderConstraints(inner); break;
+        case 'agent-card': renderAgentCard(inner); break;
+        case 'audit': renderAudit(inner); break;
+      }
+    } else {
+      switch (tab) {
+        case 'connect': await renderConnect(el); break;
+        case 'discovery-rules': await renderDiscoveryRules(el); break;
+      }
     }
   }
 
@@ -1370,16 +1402,16 @@ function dashboardHtml(): string {
         log.textContent += '\\nPipeline complete. Switch domains in the dropdown to explore.';
         status.innerHTML = '<p><span class="status-dot status-connected"></span> <strong>Pipeline complete!</strong> Imported ' + data.import.tables + ' tables, synced ' + data.sync.entities + ' entities, discovered ' + data.discovery.constraints + ' constraints.</p>';
 
-        // Refresh domain list
+        // Refresh domain list and switch to the imported domain
         const listRes = await fetch('/api/domains');
         allDomains = await listRes.json();
-        const select = document.getElementById('domain-select');
-        select.innerHTML = allDomains.map(d =>
-          '<option value="' + d.name + '"' + (d.name === 'servicenow' ? ' selected' : '') + '>' + d.label + ' (' + d.entityTypeCount + ' types)</option>'
-        ).join('');
-        if (allDomains.find(d => d.name === 'servicenow')) {
-          await switchDomain('servicenow');
+        // Detect the imported domain from the output path
+        var importedDomain = (data.import && data.import.outputDir) ? data.import.outputDir.split('/').filter(Boolean).pop() : '';
+        var targetDomain = allDomains.find(d => d.name === importedDomain) ? importedDomain : currentDomain;
+        if (targetDomain && targetDomain !== currentDomain) {
+          await switchDomain(targetDomain);
         }
+        rebuildDomainDropdown();
       } else {
         log.textContent += '\\n❌ Error: ' + data.error;
         status.innerHTML = '<p><span class="status-dot status-disconnected"></span> <strong>Pipeline failed:</strong> ' + data.error + '</p>';

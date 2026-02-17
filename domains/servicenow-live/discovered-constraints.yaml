@@ -64,3 +64,85 @@ constraints:
     conditions: []
     violationMessage: This incident breached an SLA. Review required before closing.
     satisfiedMessage: No SLA breach detected.
+  - id: servicenow-live:discovered:unassigned_high_priority
+    name: Unassigned High Priority Incidents (Discovered)
+    domain: servicenow-live
+    appliesTo:
+      - incident
+    relevantActions:
+      - assign
+      - auto_resolve
+    severity: warn
+    status: candidate
+    description: >-
+      Found 17 P1/P2 incidents without a named assignee. High priority incidents need individual ownership, not just
+      group assignment. [Evidence: 17 of 50 active P1/P2 incidents are unassigned]
+    conditions: []
+    violationMessage: Unassigned high priority incidents exist. Ensure a named owner before taking action.
+    satisfiedMessage: All high priority incidents have assigned owners.
+  - id: servicenow-live:discovered:major_incident_no_problem
+    name: Major Incident Without Problem Record (Discovered)
+    domain: servicenow-live
+    appliesTo:
+      - incident
+      - problem
+    relevantActions:
+      - close
+    severity: warn
+    status: candidate
+    description: >-
+      Found 23 resolved/closed P1 incidents without a linked problem record. Major incidents should trigger problem
+      management for root cause analysis. [Evidence: 23 resolved P1s without problem records]
+    conditions: []
+    violationMessage: This major incident has no linked problem record. Create a problem for root cause analysis.
+    satisfiedMessage: Problem record exists for root cause tracking.
+  - id: servicenow-live:discovered:recurring_ci_failures
+    name: Recurring CI Failures (Discovered)
+    domain: servicenow-live
+    appliesTo:
+      - incident
+      - change_request
+    relevantActions:
+      - assign
+      - resolve
+    severity: warn
+    status: candidate
+    description: >-
+      13 CIs have >3 active incidents. Worst: "Impact Calculation" with 208 incidents. Systemic instability needs
+      problem management investigation. [Evidence: 13 CIs with recurring failures, worst: Impact Calculation (208
+      incidents)]
+    conditions: []
+    violationMessage: This CI has recurring failures. Consider problem investigation before further changes.
+    satisfiedMessage: No recurring failure pattern detected for this CI.
+  - id: servicenow-live:discovered:failed_changes_on_ci
+    name: Recent Failed Changes on CI (Discovered)
+    domain: servicenow-live
+    appliesTo:
+      - change_request
+    relevantActions:
+      - approve
+      - implement
+    severity: block
+    status: candidate
+    description: >-
+      Found 4 failed change(s). Affected CIs: cartservice/ecommerce/CloudObs, Lin-RPRO-AZURE-2022-9. CIs with recent
+      failures are in a fragile state. [Evidence: 4 failed changes on 2 CI(s)]
+    conditions: []
+    violationMessage: Recent failed change on this CI. Review failure before approving new changes.
+    satisfiedMessage: No recent failed changes on this CI.
+  - id: servicenow-live:discovered:after_hours_change
+    name: After-Hours Change Risk (Discovered)
+    domain: servicenow-live
+    appliesTo:
+      - change_request
+    relevantActions:
+      - implement
+      - approve
+    severity: warn
+    status: candidate
+    description: >-
+      Found 18 scheduled normal change(s) without approval. Normal changes require CAB or peer review before
+      implementation. [Evidence: 18 unapproved normal changes scheduled]
+    conditions: []
+    violationMessage: Unapproved normal change detected. Route through change approval before implementation.
+    satisfiedMessage: All scheduled changes have proper approval.
