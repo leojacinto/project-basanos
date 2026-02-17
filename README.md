@@ -36,8 +36,8 @@ Basanos sits between your agents and enterprise systems. It does three things:
 ### 1. Discovers rules from your data
 Connects to a live system (currently ServiceNow), runs heuristic pattern analysis (P1 reopen rates, change freezes, SLA breaches, CI failure patterns), and surfaces rule candidates. This is not ML or AI inference - it is coded algorithms that scan your data for known anti-patterns. The value is surfacing guardrails you have not built yet, from your actual data.
 
-### 2. Enforces rules across systems
-An agent calls "resolve incident" through Basanos. Basanos checks ServiceNow for change freezes **and** Jira for active deploys on the same service. No single system sees both risks. Basanos evaluates rules across system boundaries before allowing or blocking the action.
+### 2. Enforces rules at runtime
+This is not context injection. Basanos does not dump rules into a system prompt and hope the LLM follows them. It acts as a **proxy gateway** that intercepts tool calls, queries live systems for current state (API calls, not file-path matching), evaluates only the promoted rules that match the intended action, and returns a `BLOCK` or `ALLOW` verdict before the action executes. A blocked action never reaches the target system.
 
 *Today: ServiceNow enforcement works against live instances. Jira enforcement is demonstrated with mock data. The architecture supports adding connectors for any REST-based system.*
 
@@ -364,7 +364,7 @@ ITSM is the first domain because the relationships are rich, the rules are clear
 
 ## MCP Proxy Gateway
 
-Basanos can act as a **rules-enforcing proxy** in front of ServiceNow's native MCP Server. Any MCP client (Claude, Copilot, Google ADK, a human) connects to Basanos instead of directly to ServiceNow. Basanos intercepts tool calls, enriches context from the target system, evaluates rules, and blocks or forwards the call.
+Basanos can act as a **rules-enforcing proxy** in front of ServiceNow's native MCP Server. Any MCP client (Claude, Copilot, Google ADK, a human) connects to Basanos instead of directly to ServiceNow. Basanos intercepts tool calls, enriches context from the target system via live API queries (not cached or static data), evaluates rules, and blocks or forwards the call. Rules are loaded into memory at startup from YAML and evaluated per-request. Only promoted rules matching the intended action are checked - not every rule in the system.
 
 ```
 Any MCP Client (Claude, Copilot, Google ADK, human)
