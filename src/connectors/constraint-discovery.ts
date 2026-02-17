@@ -30,7 +30,8 @@ export interface DiscoveredConstraint {
  * Analyze incident patterns to discover potential constraints.
  */
 async function discoverIncidentConstraints(
-  connector: ServiceNowConnector
+  connector: ServiceNowConnector,
+  domainName: string
 ): Promise<DiscoveredConstraint[]> {
   const constraints: DiscoveredConstraint[] = [];
 
@@ -47,7 +48,7 @@ async function discoverIncidentConstraints(
       constraints.push({
         id: "discovered:change_freeze",
         name: "Active Change Freeze (Discovered)",
-        domain: "itsm",
+        domain: domainName,
         appliesTo: ["incident"],
         relevantActions: ["resolve", "close", "auto_resolve"],
         severity: "block",
@@ -84,7 +85,7 @@ async function discoverIncidentConstraints(
       constraints.push({
         id: "discovered:p1_reassignment",
         name: "P1 Reassignment Caution (Discovered)",
-        domain: "itsm",
+        domain: domainName,
         appliesTo: ["incident"],
         relevantActions: ["reassign"],
         severity: "warn",
@@ -132,7 +133,7 @@ async function discoverIncidentConstraints(
       constraints.push({
         id: "discovered:group_capacity",
         name: "Group Capacity Warning (Discovered)",
-        domain: "itsm",
+        domain: domainName,
         appliesTo: ["incident", "problem", "change_request"],
         relevantActions: ["assign", "reassign"],
         severity: "warn",
@@ -165,7 +166,7 @@ async function discoverIncidentConstraints(
       constraints.push({
         id: "discovered:sla_breach",
         name: "SLA Breach Review (Discovered)",
-        domain: "itsm",
+        domain: domainName,
         appliesTo: ["incident"],
         relevantActions: ["close"],
         severity: "warn",
@@ -195,7 +196,8 @@ export async function discoverConstraints(
 ): Promise<DiscoveredConstraint[]> {
   console.log("\nDiscovering constraints from live data...");
 
-  const discovered = await discoverIncidentConstraints(connector);
+  const domainName = dirname(outputPath).split("/").pop() || "servicenow";
+  const discovered = await discoverIncidentConstraints(connector, domainName);
 
   if (discovered.length > 0) {
     const yamlConstraints = discovered.map((c) => ({

@@ -1,0 +1,218 @@
+name: servicenow-demo
+label: ServiceNow (Demo)
+version: 0.1.0-imported
+description: >-
+  Auto-imported ontology from the mock ServiceNow server. Contains 6 entity types with 32 fields and 8 cross-table
+  relationships. Review and refine this schema to add business context that the API schema cannot express.
+entityTypes:
+  - name: incident
+    label: incident
+    description: 'Imported from ServiceNow table: incident'
+    properties:
+      - name: number
+        label: Number
+        type: string
+        required: true
+        description: Unique incident identifier
+      - name: short_description
+        label: Short Description
+        type: string
+        required: true
+        description: Brief summary
+      - name: state
+        label: State
+        type: enum
+        required: true
+        description: Incident lifecycle state
+        enumValues:
+          - '1'
+          - '2'
+          - '3'
+          - '6'
+          - '7'
+          - '8'
+      - name: priority
+        label: Priority
+        type: enum
+        required: true
+        description: Priority derived from impact and urgency
+        enumValues:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+      - name: impact
+        label: Impact
+        type: enum
+        required: true
+        description: Business impact
+        enumValues:
+          - '1'
+          - '2'
+          - '3'
+      - name: urgency
+        label: Urgency
+        type: enum
+        required: true
+        description: Resolution urgency
+        enumValues:
+          - '1'
+          - '2'
+          - '3'
+      - name: opened_at
+        label: Opened
+        type: date
+        required: true
+        description: When the incident was created
+    relationships:
+      - name: business_service
+        label: Business Service
+        targetType: cmdb_ci_service
+        cardinality: many_to_one
+        description: Affected business service
+      - name: cmdb_ci
+        label: Configuration Item
+        targetType: cmdb_ci
+        cardinality: many_to_one
+        description: Affected CI
+      - name: assignment_group
+        label: Assignment Group
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Assigned team
+      - name: problem_id
+        label: Problem
+        targetType: problem
+        cardinality: many_to_one
+        description: Related problem record
+  - name: cmdb_ci
+    label: cmdb_ci
+    description: 'Imported from ServiceNow table: cmdb_ci'
+    properties:
+      - name: name
+        label: Name
+        type: string
+        required: true
+        description: CI name
+      - name: environment
+        label: Environment
+        type: enum
+        required: false
+        description: Deployment environment
+      - name: operational_status
+        label: Operational Status
+        type: enum
+        required: false
+        description: Current status
+    relationships: []
+  - name: cmdb_ci_service
+    label: cmdb_ci_service
+    description: 'Imported from ServiceNow table: cmdb_ci_service'
+    properties:
+      - name: name
+        label: Name
+        type: string
+        required: true
+        description: Service name
+      - name: busines_criticality
+        label: Business Criticality
+        type: enum
+        required: false
+        description: Criticality level
+      - name: operational_status
+        label: Operational Status
+        type: enum
+        required: false
+        description: Current status
+    relationships:
+      - name: owned_by
+        label: Owned By
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Owning group
+  - name: change_request
+    label: change_request
+    description: 'Imported from ServiceNow table: change_request'
+    properties:
+      - name: number
+        label: Number
+        type: string
+        required: true
+        description: Change number
+      - name: type
+        label: Type
+        type: enum
+        required: false
+        description: Change type
+      - name: state
+        label: State
+        type: enum
+        required: true
+        description: Change state
+      - name: risk
+        label: Risk
+        type: enum
+        required: false
+        description: Risk level
+      - name: start_date
+        label: Planned Start
+        type: date
+        required: false
+        description: Planned start
+      - name: end_date
+        label: Planned End
+        type: date
+        required: false
+        description: Planned end
+    relationships:
+      - name: assignment_group
+        label: Assignment Group
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Requesting group
+  - name: problem
+    label: problem
+    description: 'Imported from ServiceNow table: problem'
+    properties:
+      - name: number
+        label: Number
+        type: string
+        required: true
+        description: Problem number
+      - name: state
+        label: State
+        type: enum
+        required: true
+        description: Problem state
+      - name: known_error
+        label: Known Error
+        type: boolean
+        required: false
+        description: Is known error
+    relationships:
+      - name: cmdb_ci
+        label: Configuration Item
+        targetType: cmdb_ci
+        cardinality: many_to_one
+        description: Root cause CI
+      - name: assignment_group
+        label: Assignment Group
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Investigating team
+  - name: sys_user_group
+    label: sys_user_group
+    description: 'Imported from ServiceNow table: sys_user_group'
+    properties:
+      - name: name
+        label: Name
+        type: string
+        required: true
+        description: Group name
+      - name: type
+        label: Type
+        type: enum
+        required: false
+        description: Group type
+    relationships: []

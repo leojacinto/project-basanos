@@ -1,5 +1,5 @@
-name: servicenow
-label: ServiceNow
+name: servicenow-live
+label: ServiceNow (Live)
 version: 0.1.0-imported
 description: >-
   Auto-imported ontology from a live ServiceNow instance. Contains 6 entity types with 310 fields and 0 cross-table

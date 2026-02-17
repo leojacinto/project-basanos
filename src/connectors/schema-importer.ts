@@ -163,12 +163,17 @@ export async function importSchemas(
     });
   }
 
+  // Derive domain name from output folder (e.g., "servicenow-demo" or "servicenow-live")
+  const folderName = outputDir.split("/").pop() || "servicenow";
+  const isDemo = folderName.includes("demo");
   const domain = {
-    name: "servicenow",
-    label: "ServiceNow",
+    name: folderName,
+    label: isDemo ? "ServiceNow (Demo)" : "ServiceNow (Live)",
     version: "0.1.0-imported",
     description:
-      "Auto-imported ontology from a live ServiceNow instance. " +
+      (isDemo
+        ? "Auto-imported ontology from the mock ServiceNow server. "
+        : "Auto-imported ontology from a live ServiceNow instance. ") +
       `Contains ${entityTypes.length} entity types with ${totalFields} fields ` +
       `and ${totalRefs} cross-table relationships. ` +
       "Review and refine this schema to add business context that the API schema cannot express.",

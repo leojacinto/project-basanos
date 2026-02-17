@@ -198,7 +198,8 @@ app.post("/api/import", async (req, res) => {
     else if (clientId && clientSecret) authMode = "oauth_client_credentials";
     const connector = new ServiceNowConnector({ instanceUrl, authMode, username, password, clientId, clientSecret });
     const importTables = tables || ["incident", "cmdb_ci", "cmdb_ci_service", "change_request", "problem", "sys_user_group"];
-    const outputDir = resolve(domainsDir, "servicenow-live");
+    const isMock = instanceUrl.includes("localhost") || instanceUrl.includes("127.0.0.1");
+    const outputDir = resolve(domainsDir, isMock ? "servicenow-demo" : "servicenow-live");
 
     const importResult = await importSchemas(connector, importTables, outputDir);
 

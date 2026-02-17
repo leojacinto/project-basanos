@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Basanos CLI — connect to ServiceNow, import schemas,
+ * Basanos CLI - connect to ServiceNow, import schemas,
  * sync entities, and discover constraints.
  *
  * Usage:
@@ -76,7 +76,12 @@ async function main() {
     .split(",")
     .map((t) => t.trim());
 
-  const importOutputDir = resolve(projectRoot, "domains", "servicenow-live");
+  // Mock (localhost) writes to servicenow-demo (committed), real writes to servicenow-live (gitignored)
+  const instanceUrl = connector.getInstanceUrl();
+  const isMock = instanceUrl.includes("localhost") || instanceUrl.includes("127.0.0.1");
+  const domainFolder = isMock ? "servicenow-demo" : "servicenow-live";
+  const importOutputDir = resolve(projectRoot, "domains", domainFolder);
+  console.log(`  Output: domains/${domainFolder}/ ${isMock ? "(mock, committed)" : "(live, gitignored)"}\n`);
 
   if (command === "import" || command === "full") {
     console.log("Step 2: Importing schemas from ServiceNow...");
@@ -124,7 +129,7 @@ async function main() {
         const name = String(
           entity.properties["name"] || entity.properties["number"] || id
         );
-        console.log(`  ${"  ".repeat(depth)}depth ${depth}: ${entity.type} — ${name}`);
+        console.log(`  ${"  ".repeat(depth)}depth ${depth}: ${entity.type} - ${name}`);
       }
     }
 
@@ -140,7 +145,7 @@ async function main() {
     const discovered = await discoverConstraints(connector, outputPath);
     console.log(`\n📊 Discovery summary: ${discovered.length} constraints suggested`);
     for (const c of discovered) {
-      console.log(`  • ${c.name} [${c.severity}] — ${c.evidence}`);
+      console.log(`  - ${c.name} [${c.severity}] - ${c.evidence}`);
     }
     console.log("");
   }
@@ -150,8 +155,8 @@ async function main() {
   if (command === "full") {
     console.log("═".repeat(50));
     console.log("✅ Full pipeline complete!");
-    console.log(`   Schemas: domains/servicenow-live/ontology.yaml`);
-    console.log(`   Constraints: domains/servicenow-live/discovered-constraints.yaml`);
+    console.log(`   Schemas: domains/${domainFolder}/ontology.yaml`);
+    console.log(`   Constraints: domains/${domainFolder}/discovered-constraints.yaml`);
     console.log(`\nNext steps:`);
     console.log(`  1. Review generated YAML files and add business context`);
     console.log(`  2. Run 'npm run dashboard' to explore the ontology visually`);
