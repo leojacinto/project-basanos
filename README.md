@@ -177,6 +177,16 @@ sequenceDiagram
 
 Every answer traces back to a real API call, a real record, a real timestamp. The provenance is baked in.
 
+## Demo: Discover, Promote, Enforce
+
+The **Demo** tab on the dashboard walks through the full Basanos narrative:
+
+1. **Discover** - Basanos connects to ServiceNow, analyzes data patterns (P1 reopen rates, change freezes, SLA breaches, CI failure patterns), and surfaces constraint candidates.
+2. **Promote** - A human reviews discovered candidates and promotes the ones that matter. No rules fire without human review.
+3. **Enforce** - Any MCP client calls a tool through Basanos. Basanos enriches context from ServiceNow (incident priority, CI, active changes, SLAs), evaluates promoted constraints, and blocks or allows the call.
+
+The demo uses your live ServiceNow instance with real incidents and real change requests.
+
 ## Quick Start with Docker (Recommended)
 
 The easiest way to run Basanos. No need to install Node.js or TypeScript.
@@ -208,14 +218,20 @@ Open [http://localhost:3001](http://localhost:3001) - the dashboard loads with a
 Create a `.env` file in the project root:
 
 ```bash
+# Schema import (basic auth or OAuth)
 SERVICENOW_INSTANCE_URL=https://your-instance.service-now.com
 SERVICENOW_USERNAME=admin
 SERVICENOW_PASSWORD=your-password
+
+# MCP Proxy Gateway (OAuth client_credentials)
+SERVICENOW_MCP_SERVER_URL=https://your-instance.service-now.com/sncapps/mcp-server/mcp/sn_mcp_server_default
+SERVICENOW_CLIENT_ID=your-client-id
+SERVICENOW_CLIENT_SECRET='your-client-secret'
 ```
 
 Then restart: `docker compose up`
 
-The dashboard will use your real credentials. Go to the **Connect** tab, click **Import & Discover** to pull live data.
+The dashboard will use your real credentials. Go to the **Connect** tab to import schemas and discover constraints, then use the **Demo** tab to test constraint enforcement against live data.
 
 ## Quick Start (Developer)
 
@@ -262,7 +278,7 @@ npm run cli -- full            # In another terminal
 src/
 ├── index.ts                 # MCP server entry point (6 tools, dynamic resources)
 ├── cli.ts                   # CLI: connect, import, sync, discover
-├── dashboard.ts             # Web UI with multi-domain support + light/dark mode
+├── dashboard.ts             # Web UI: multi-domain, demo tab, light/dark mode
 ├── loader.ts                # YAML schema/constraint loader
 ├── ontology/
 │   ├── engine.ts            # Ontology resolution and traversal
@@ -274,9 +290,10 @@ src/
 │   └── rule-evaluator.ts    # Declarative rule engine (YAML conditions)
 ├── connectors/
 │   ├── servicenow.ts        # ServiceNow REST API connector
-│   ├── schema-importer.ts   # sys_dictionary → ontology.yaml
-│   ├── entity-sync.ts       # Live table data → Basanos entities
-│   └── constraint-discovery.ts  # Data pattern analysis → suggested constraints
+│   ├── servicenow-mcp.ts    # ServiceNow MCP proxy (OAuth, tool exec, context enrichment)
+│   ├── schema-importer.ts   # sys_dictionary -> ontology.yaml
+│   ├── entity-sync.ts       # Live table data -> Basanos entities
+│   └── constraint-discovery.ts  # Data pattern analysis -> suggested constraints
 ├── a2a/
 │   └── types.ts             # A2A agent card types and generation
 ├── mock/
@@ -329,19 +346,40 @@ ITSM is the first domain because the relationships are rich, the business rules 
 | **A2A** (Agent2Agent) | Horizontal: agent ↔ agent | 🔜 Planned |
 | **ACP** (Agent Communication Protocol) | Lightweight REST messaging | 🔜 Planned |
 
+## MCP Proxy Gateway
+
+Basanos can act as a **constraint-enforcing proxy** in front of ServiceNow's native MCP Server. Any MCP client (Claude, Copilot, Google ADK, a human) connects to Basanos instead of directly to ServiceNow. Basanos intercepts tool calls, enriches context from ServiceNow, evaluates constraints, and blocks or forwards the call.
+
+```
+Any MCP Client (Claude, Copilot, Google ADK, human)
+  -> Basanos MCP Server (constraint gateway)
+    -> ServiceNow MCP Server (execution)
+```
+
+Configure in `.env`:
+
+```bash
+SERVICENOW_MCP_SERVER_URL=https://your-instance.service-now.com/sncapps/mcp-server/mcp/sn_mcp_server_default
+SERVICENOW_CLIENT_ID=your-client-id
+SERVICENOW_CLIENT_SECRET='your-client-secret'
+```
+
+The proxy enriches each tool call with live context (incident priority, CI, active change requests, SLA breaches) before evaluating constraints. This means the same "Resolve incident" tool can be blocked for one incident (active change freeze on its CI) and allowed for another (no changes) - based on real system state, not static rules.
+
+### Why not just use ServiceNow business rules?
+
+ServiceNow's server-side rules (business rules, data policies, ACLs) protect ServiceNow data regardless of how requests arrive. They are mature and cover their own surface well.
+
+Basanos adds value at a different layer:
+
+- **Cross-system constraints** - "Don't resolve this incident if there's an open deploy in Jira for the same service." ServiceNow rules cannot see Jira.
+- **Discovery** - Basanos finds constraint patterns from your data that you have not built as business rules yet.
+- **Protocol gateway** - One enforcement point for all MCP traffic, regardless of which agent or system is calling.
+- **Vendor-neutral** - Same constraint engine whether the target is ServiceNow, Salesforce, or a custom API.
+
+For a single-system, single-vendor scenario, business rules are simpler. Basanos is for the layer above - where multiple systems, multiple agents, and multiple protocols intersect.
+
 ## Security & Authentication
-
-### Basanos is not MCP-on-MCP
-
-ServiceNow ships its own MCP server for live data access (reads, writes, OAuth-scoped). Basanos does not wrap or replace it. The two serve different purposes and run side by side:
-
-| | ServiceNow MCP | Basanos MCP |
-|---|---|---|
-| **Purpose** | Live CRUD on tables | Domain knowledge, relationships, constraint verdicts |
-| **Connection** | Real-time, every request | Import-time only, then fully offline |
-| **Auth** | OAuth per request | OAuth or basic at import, none at query time |
-
-An agent uses **both**: ServiceNow MCP to read/write records, Basanos MCP to understand what those records mean and whether an action is safe.
 
 ### Auth modes
 
@@ -357,7 +395,8 @@ The connector auto-detects which mode to use based on your `.env`:
 
 ### What to know about security
 
-- **Read-only.** Basanos never writes back to ServiceNow. There is no mutation path.
+- **Proxy mode.** When acting as an MCP proxy, Basanos can forward write operations to ServiceNow's MCP Server after constraint checks pass. The proxy uses OAuth client_credentials for authentication.
+- **Read-only import.** The schema import pipeline never writes back to ServiceNow.
 - **Import-time only.** Credentials are used during the import step. After that, Basanos serves from local YAML with zero connection to ServiceNow.
 - **Data at rest.** The generated `ontology.yaml` and `provenance.json` contain table structures, field names, and record counts. Not credentials, but structural metadata. Treat these files accordingly in sensitive environments.
 - **Credentials in `.env`.** The `.env` file is gitignored. For production, use OAuth with scoped, read-only service accounts.

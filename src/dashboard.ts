@@ -1482,26 +1482,106 @@ function dashboardHtml(): string {
   var demoIncidents = [];
 
   async function renderDemo(el) {
-    el.innerHTML = '<div class="card" style="max-width:900px;margin:0 auto;">' +
-      '<h2 style="margin-top:0;">MCP Client Simulator</h2>' +
-      '<p style="color:var(--text-secondary);margin-bottom:1rem;">' +
-        'Simulates an AI agent calling ServiceNow MCP tools through Basanos. ' +
-        'Basanos enriches context from ServiceNow, evaluates constraints, and blocks or allows the call.' +
-      '</p>' +
-      '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;" id="demo-scenarios">' +
-        '<button class="btn-primary" style="font-size:0.8rem;" onclick="demoListIncidents()">List Open Incidents</button>' +
-        '<button class="btn-primary" style="font-size:0.8rem;background:#e74c3c;" onclick="demoResolve(&apos;INC0025428&apos;)">Resolve INC0025428 (P2, has active change)</button>' +
-        '<button class="btn-primary" style="font-size:0.8rem;background:var(--success);" onclick="demoResolve(&apos;INC0018834&apos;)">Resolve INC0018834 (P4, no changes)</button>' +
-        '<button style="font-size:0.8rem;background:none;border:1px solid var(--border);color:var(--text);border-radius:0.4rem;padding:0.4rem 0.8rem;cursor:pointer;" onclick="demoClear()">Clear</button>' +
+    // Fetch candidate and promoted constraints for the discovery section
+    var allConstraints = [];
+    try {
+      var domains = ['itsm', 'servicenow-demo', 'servicenow-live'];
+      for (var di = 0; di < domains.length; di++) {
+        var cRes = await fetch('/api/domains/' + domains[di] + '/constraints');
+        if (cRes.ok) { var cData = await cRes.json(); allConstraints = allConstraints.concat(cData); }
+      }
+    } catch(e) { /* ignore */ }
+
+    var resolveConstraints = allConstraints.filter(function(c) {
+      return c.relevantActions && (c.relevantActions.indexOf('resolve') >= 0 || c.relevantActions.indexOf('close') >= 0);
+    });
+    var promoted = resolveConstraints.filter(function(c) { return c.status === 'promoted'; });
+    var candidates = resolveConstraints.filter(function(c) { return c.status === 'candidate'; });
+
+    el.innerHTML = '<div style="max-width:900px;margin:0 auto;">' +
+
+      // Step 1: Discover
+      '<div class="card" style="margin-bottom:1rem;">' +
+        '<h2 style="margin-top:0;"><span style="color:var(--accent);font-size:0.9rem;">Step 1</span> Discover</h2>' +
+        '<p style="color:var(--text-secondary);margin-bottom:0.75rem;">' +
+          'Basanos connects to your ServiceNow instance, analyzes data patterns, and surfaces constraint candidates. ' +
+          'These are guardrails you have not built yet - discovered from your actual data.' +
+        '</p>' +
+        '<div id="demo-candidates">' +
+        (candidates.length === 0 && promoted.length === 0
+          ? '<p style="color:var(--text-secondary);">No constraints found. Run Import & Discover from the Connect tab first.</p>'
+          : (candidates.length > 0
+              ? '<p style="font-size:0.85rem;font-weight:600;">' + candidates.length + ' candidate(s) discovered for resolve/close actions:</p>' +
+                candidates.map(function(c) {
+                  return '<div style="padding:0.5rem;margin:0.3rem 0;border:1px solid var(--border);border-radius:0.4rem;font-size:0.8rem;">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                      '<div><strong>' + c.name + '</strong> <span class="badge badge-type">' + c.severity + '</span></div>' +
+                      '<button class="btn-primary" style="font-size:0.75rem;padding:3px 10px;" onclick="demoPromote(&apos;' + c.id + '&apos;)">Promote</button>' +
+                    '</div>' +
+                    '<div style="color:var(--text-secondary);margin-top:0.25rem;">' + c.description + '</div>' +
+                  '</div>';
+                }).join('')
+              : '<p style="color:var(--success);font-size:0.85rem;">All relevant constraints have been promoted. See Step 2.</p>')) +
+        '</div>' +
       '</div>' +
-      '<div id="demo-custom" style="display:flex;gap:0.5rem;margin-bottom:1rem;">' +
-        '<input id="demo-inc-input" type="text" placeholder="Enter incident number (e.g. INC0010001)" style="flex:1;" />' +
-        '<button class="btn-primary" style="font-size:0.8rem;" onclick="demoResolve(document.getElementById(&apos;demo-inc-input&apos;).value)">Resolve</button>' +
+
+      // Step 2: Promote
+      '<div class="card" style="margin-bottom:1rem;">' +
+        '<h2 style="margin-top:0;"><span style="color:var(--accent);font-size:0.9rem;">Step 2</span> Promote</h2>' +
+        '<p style="color:var(--text-secondary);margin-bottom:0.75rem;">' +
+          'A human reviews discovered candidates and promotes the ones that matter. ' +
+          'Only promoted constraints are enforced. This is the guardrail lifecycle - no rules fire without human review.' +
+        '</p>' +
+        '<div id="demo-promoted">' +
+        (promoted.length > 0
+          ? '<p style="font-size:0.85rem;font-weight:600;">' + promoted.length + ' active constraint(s) for resolve/close:</p>' +
+            promoted.map(function(c) {
+              return '<div style="padding:0.5rem;margin:0.3rem 0;border:1px solid var(--success);border-radius:0.4rem;font-size:0.8rem;border-left:3px solid var(--success);">' +
+                '<strong>' + c.name + '</strong> <span class="badge badge-type">' + c.severity + '</span>' +
+                '<div style="color:var(--text-secondary);margin-top:0.25rem;">' + c.description + '</div>' +
+              '</div>';
+            }).join('')
+          : '<p style="color:var(--text-secondary);font-size:0.85rem;">No promoted constraints yet. Promote candidates from Step 1.</p>') +
+        '</div>' +
       '</div>' +
-      '<div id="demo-chat" style="border:1px solid var(--border);border-radius:0.5rem;min-height:400px;max-height:600px;overflow-y:auto;padding:1rem;background:var(--bg);font-size:0.85rem;">' +
-        '<div style="color:var(--text-secondary);text-align:center;padding:2rem;">Click a scenario above to start the demo</div>' +
+
+      // Step 3: Enforce
+      '<div class="card">' +
+        '<h2 style="margin-top:0;"><span style="color:var(--accent);font-size:0.9rem;">Step 3</span> Enforce</h2>' +
+        '<p style="color:var(--text-secondary);margin-bottom:0.75rem;">' +
+          'Any MCP client (Claude, Copilot, Google ADK, a human) calls a tool through Basanos. ' +
+          'Basanos enriches context from ServiceNow, evaluates promoted constraints, and blocks or allows the call.' +
+        '</p>' +
+        '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;" id="demo-scenarios">' +
+          '<button class="btn-primary" style="font-size:0.8rem;" onclick="demoListIncidents()">List Open Incidents</button>' +
+          '<button class="btn-primary" style="font-size:0.8rem;background:#e74c3c;" onclick="demoResolve(&apos;INC0025428&apos;)">Resolve INC0025428 (blocked)</button>' +
+          '<button class="btn-primary" style="font-size:0.8rem;background:var(--success);" onclick="demoResolve(&apos;INC0018834&apos;)">Resolve INC0018834 (allowed)</button>' +
+          '<button style="font-size:0.8rem;background:none;border:1px solid var(--border);color:var(--text);border-radius:0.4rem;padding:0.4rem 0.8rem;cursor:pointer;" onclick="demoClear()">Clear</button>' +
+        '</div>' +
+        '<div id="demo-custom" style="display:flex;gap:0.5rem;margin-bottom:0.75rem;">' +
+          '<input id="demo-inc-input" type="text" placeholder="Enter incident number (e.g. INC0010001)" style="flex:1;" />' +
+          '<button class="btn-primary" style="font-size:0.8rem;" onclick="demoResolve(document.getElementById(&apos;demo-inc-input&apos;).value)">Resolve</button>' +
+        '</div>' +
+        '<div id="demo-chat" style="border:1px solid var(--border);border-radius:0.5rem;min-height:300px;max-height:500px;overflow-y:auto;padding:1rem;background:var(--bg);font-size:0.85rem;">' +
+          '<div style="color:var(--text-secondary);text-align:center;padding:2rem;">Click a scenario above to test constraint enforcement</div>' +
+        '</div>' +
       '</div>' +
+
     '</div>';
+  }
+
+  async function demoPromote(constraintId) {
+    try {
+      var res = await fetch('/api/constraints/' + encodeURIComponent(constraintId) + '/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'promoted' }),
+      });
+      if (res.ok) {
+        demoMessages = [];
+        await renderDemo(document.getElementById('content'));
+      }
+    } catch(e) { /* ignore */ }
   }
 
   function demoAddMessage(role, content, type) {

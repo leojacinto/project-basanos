@@ -2,6 +2,37 @@
 
 All notable changes to project-basanos are documented here.
 
+## 2026-02-18
+
+### MCP Proxy Gateway
+- Basanos now acts as a constraint-enforcing proxy in front of ServiceNow's native MCP Server
+- `ServiceNowMCPClient` with OAuth client_credentials, tool discovery, and execution
+- Full MCP Server URL parsing (`parseMCPServerUrl`) - single URL config instead of separate instance + server name
+- MCP server discovery endpoint for finding available servers on an instance
+- Context enrichment: queries incident details, CI, active change requests, SLA breaches before constraint evaluation
+- Auto-connects on startup when `SERVICENOW_MCP_SERVER_URL` is configured in `.env`
+
+### Demo tab: Discover, Promote, Enforce
+- Three-step demo narrative on the dashboard:
+  1. **Discover** - shows constraint candidates discovered from live ServiceNow data
+  2. **Promote** - inline promote buttons, human-in-the-loop guardrail lifecycle
+  3. **Enforce** - MCP Client Simulator with live constraint enforcement
+- Chat-like UI simulating an AI agent calling ServiceNow MCP tools through Basanos
+- Pre-built scenarios: blocked (INC on CI with active changes) vs allowed (clean CI)
+- Custom incident number input for ad-hoc testing
+- Full trace display: metadata gathered, constraints evaluated, verdict, execution result
+- Light/dark mode compatible
+
+### ServiceNow MCP tool creation (live instance)
+- Created "Resolve incident" write tool on live ServiceNow Quickstart Server via API
+- Documented correct approach: scope, table hierarchy, input subclass (`sn_mcp_scripted_rest_input`)
+- Tool inputs: incident_number (required), resolution_notes (required), resolution_code (optional)
+
+### Dashboard improvements
+- MCP proxy Connect tab: single MCP Server URL input, server discovery button
+- Environment config API serves `mcpServerUrl` for form pre-population
+- Fixed constraint override persistence across restarts
+
 ## 2026-02-17
 
 ### Constraint lifecycle and persistence
