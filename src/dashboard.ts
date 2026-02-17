@@ -1059,7 +1059,7 @@ function dashboardHtml(): string {
   <header>
     <h1>
       &#x1F0CF; Basanos
-      <span class="subtitle">Semantic Ontology Dashboard</span>
+      <span class="subtitle">Multi-system Agentic Rules Engine</span>
     </h1>
     <div style="display:flex;gap:0.75rem;align-items:center;">
       <select id="domain-select" onchange="switchDomain(this.value)" style="

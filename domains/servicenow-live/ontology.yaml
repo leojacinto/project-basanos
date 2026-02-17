@@ -2,7 +2,7 @@ name: servicenow-live
 label: ServiceNow (Live)
 version: 0.1.0-imported
 description: >-
-  Auto-imported ontology from a live ServiceNow instance. Contains 6 entity types with 310 fields and 0 cross-table
+  Auto-imported ontology from a live ServiceNow instance. Contains 6 entity types with 310 fields and 21 cross-table
   relationships. Review and refine this schema to add business context that the API schema cannot express.
 entityTypes:
   - name: incident
@@ -11,7 +11,7 @@ entityTypes:
     properties:
       - name: promoted_on
         label: Promoted
-        type: string
+        type: date
         required: false
         description: Promoted
       - name: overview
@@ -21,7 +21,7 @@ entityTypes:
         description: Overview
       - name: proposed_on
         label: Proposed
-        type: string
+        type: date
         required: false
         description: Proposed
       - name: category
@@ -54,15 +54,10 @@ entityTypes:
         label: Last reopened by
         type: string
         required: false
-        description: Reference to [object Object] (external)
-      - name: caused_by
-        label: Caused by Change
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: business_stc
         label: Business resolve time
-        type: string
+        type: number
         required: false
         description: Business resolve time
       - name: severity
@@ -81,14 +76,14 @@ entityTypes:
         description: Business impact
       - name: child_incidents
         label: Child Incidents
-        type: string
+        type: number
         required: false
         description: Child Incidents
       - name: asset
         label: Asset
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to alm_asset (external)
       - name: timeline
         label: Timeline
         type: string
@@ -98,7 +93,7 @@ entityTypes:
         label: Resolved by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: major_incident_state
         label: Major incident state
         type: enum
@@ -113,7 +108,7 @@ entityTypes:
         label: Trigger Rule
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to major_incident_trigger_rule (external)
       - name: incident_state
         label: Incident state
         type: enum
@@ -140,20 +135,15 @@ entityTypes:
         label: Caller
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: reopened_time
         label: Last reopened at
-        type: string
+        type: date
         required: false
         description: Last reopened at
-      - name: rfc
-        label: Change Request
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: calendar_stc
         label: Resolve time
-        type: string
+        type: number
         required: false
         description: Resolve time
       - name: cause
@@ -194,7 +184,7 @@ entityTypes:
           - sql server
       - name: resolved_at
         label: Resolved
-        type: string
+        type: date
         required: false
         description: Resolved
       - name: lessons_learned
@@ -206,7 +196,7 @@ entityTypes:
         label: Promoted by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: close_code
         label: Close code
         type: enum
@@ -223,24 +213,14 @@ entityTypes:
           - User error
           - Known error
           - Resolved by problem
-      - name: problem_id
-        label: Problem
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: proposed_by
         label: Proposed by
         type: string
         required: false
-        description: Reference to [object Object] (external)
-      - name: parent_incident
-        label: Parent Incident
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: reopen_count
         label: Reopen count
-        type: string
+        type: number
         required: false
         description: Reopen count
       - name: hold_reason
@@ -258,7 +238,27 @@ entityTypes:
         type: string
         required: false
         description: MRN No
-    relationships: []
+    relationships:
+      - name: caused_by
+        label: Caused by Change
+        targetType: change_request
+        cardinality: many_to_one
+        description: Reference to change_request
+      - name: rfc
+        label: Change Request
+        targetType: change_request
+        cardinality: many_to_one
+        description: Reference to change_request
+      - name: problem_id
+        label: Problem
+        targetType: problem
+        cardinality: many_to_one
+        description: Reference to problem
+      - name: parent_incident
+        label: Parent Incident
+        targetType: incident
+        cardinality: many_to_one
+        description: Reference to incident
   - name: cmdb_ci
     label: cmdb_ci
     description: 'Imported from ServiceNow table: cmdb_ci'
@@ -267,17 +267,12 @@ entityTypes:
         label: OT device details
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmdb_ot_entity (external)
       - name: last_discovered
         label: Most recent discovery
-        type: string
+        type: date
         required: false
         description: Most recent discovery
-      - name: change_control
-        label: Approval group
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: mac_address
         label: MAC Address
         type: string
@@ -288,16 +283,11 @@ entityTypes:
         type: string
         required: false
         description: Correlation ID
-      - name: duplicate_of
-        label: Duplicate Of
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: attested_by
         label: Attested By
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: short_description
         label: Description
         type: string
@@ -316,7 +306,7 @@ entityTypes:
         label: Business Unit
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to business_unit (external)
       - name: sn_vul_qualys_id
         label: Qualys ID
         type: string
@@ -333,7 +323,7 @@ entityTypes:
           - Rejected
       - name: first_discovered
         label: First discovered
-        type: string
+        type: date
         required: false
         description: First discovered
       - name: model_number
@@ -341,11 +331,6 @@ entityTypes:
         type: string
         required: false
         description: Model number
-      - name: managed_by_group
-        label: Managed By Group
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: product_instance_id
         label: Product instance identifier
         type: string
@@ -355,7 +340,7 @@ entityTypes:
         label: Schedule
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmn_schedule (external)
       - name: attributes
         label: Attributes
         type: string
@@ -363,7 +348,7 @@ entityTypes:
         description: Attributes
       - name: attestation_score
         label: Attestation Score
-        type: string
+        type: number
         required: false
         description: Attestation Score
       - name: discovery_source
@@ -462,19 +447,19 @@ entityTypes:
         description: Subcategory
       - name: fault_count
         label: Fault count
-        type: string
+        type: number
         required: false
         description: Fault count
       - name: created_by_qualys
         label: Created by Qualys
-        type: string
+        type: boolean
         required: false
         description: Created by Qualys
       - name: life_cycle_stage
         label: Life Cycle Stage
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to life_cycle_stage (external)
       - name: fqdn
         label: Fully qualified domain name
         type: string
@@ -487,17 +472,17 @@ entityTypes:
         description: Qualys host ID
       - name: skip_sync
         label: Skip sync
-        type: string
+        type: boolean
         required: false
         description: Skip sync
       - name: start_date
         label: Start date
-        type: string
+        type: date
         required: false
         description: Start date
       - name: monitor
         label: Monitor
-        type: string
+        type: boolean
         required: false
         description: Monitor
       - name: ip_address
@@ -507,7 +492,7 @@ entityTypes:
         description: IP Address
       - name: can_print
         label: Can Print
-        type: string
+        type: boolean
         required: false
         description: Can Print
       - name: dns_domain
@@ -517,34 +502,29 @@ entityTypes:
         description: DNS Domain
       - name: attested
         label: Attested
-        type: string
+        type: boolean
         required: false
         description: Attested
       - name: attested_date
         label: Attested Date
-        type: string
+        type: date
         required: false
         description: Attested Date
       - name: maintenance_schedule
         label: Maintenance schedule
         type: string
         required: false
-        description: Reference to [object Object] (external)
-      - name: assignment_group
-        label: Change Group
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmn_schedule (external)
       - name: managed_by
         label: Managed by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: manufacturer
         label: Manufacturer
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to core_company (external)
       - name: po_number
         label: PO number
         type: string
@@ -557,22 +537,22 @@ entityTypes:
         description: Due in
       - name: checked_in
         label: Checked in
-        type: string
+        type: date
         required: false
         description: Checked in
       - name: vendor
         label: Vendor
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to core_company (external)
       - name: company
         label: Company
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to core_company (external)
       - name: install_date
         label: Installed
-        type: string
+        type: date
         required: false
         description: Installed
       - name: justification
@@ -584,7 +564,7 @@ entityTypes:
         label: Department
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmn_department (external)
       - name: invoice_number
         label: Invoice number
         type: string
@@ -599,10 +579,10 @@ entityTypes:
         label: Assigned to
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: warranty_expiration
         label: Warranty expiration
-        type: string
+        type: date
         required: false
         description: Warranty expiration
       - name: asset_tag
@@ -612,7 +592,7 @@ entityTypes:
         description: Asset tag
       - name: cost
         label: Cost
-        type: string
+        type: number
         required: false
         description: Cost
       - name: serial_number
@@ -624,15 +604,15 @@ entityTypes:
         label: Owned by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: model_id
         label: Model ID
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmdb_model (external)
       - name: checked_out
         label: Checked out
-        type: string
+        type: date
         required: false
         description: Checked out
       - name: cost_cc
@@ -642,17 +622,12 @@ entityTypes:
         description: Cost currency
       - name: order_date
         label: Ordered
-        type: string
+        type: date
         required: false
         description: Ordered
-      - name: support_group
-        label: Support group
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: delivery_date
         label: Order received
-        type: string
+        type: date
         required: false
         description: Order received
       - name: install_status
@@ -672,19 +647,19 @@ entityTypes:
           - '100'
       - name: due
         label: Due
-        type: string
+        type: date
         required: false
         description: Due
       - name: cost_center
         label: Cost center
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmn_cost_center (external)
       - name: supported_by
         label: Supported by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: name
         label: Name
         type: string
@@ -692,29 +667,29 @@ entityTypes:
         description: Name
       - name: unverified
         label: Requires verification
-        type: string
+        type: boolean
         required: false
         description: Requires verification
       - name: assigned
         label: Assigned
-        type: string
+        type: date
         required: false
         description: Assigned
       - name: location
         label: Location
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmn_location (external)
       - name: purchase_date
         label: Purchased
-        type: string
+        type: date
         required: false
         description: Purchased
       - name: asset
         label: Asset
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to alm_asset (external)
       - name: lease_id
         label: Lease contract
         type: string
@@ -746,8 +721,33 @@ entityTypes:
         label: Life Cycle Stage Status
         type: string
         required: false
-        description: Reference to [object Object] (external)
-    relationships: []
+        description: Reference to life_cycle_stage_status (external)
+    relationships:
+      - name: change_control
+        label: Approval group
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Reference to sys_user_group
+      - name: duplicate_of
+        label: Duplicate Of
+        targetType: cmdb_ci
+        cardinality: many_to_one
+        description: Reference to cmdb_ci
+      - name: managed_by_group
+        label: Managed By Group
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Reference to sys_user_group
+      - name: assignment_group
+        label: Change Group
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Reference to sys_user_group
+      - name: support_group
+        label: Support group
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Reference to sys_user_group
   - name: cmdb_ci_service
     label: cmdb_ci_service
     description: 'Imported from ServiceNow table: cmdb_ci_service'
@@ -769,14 +769,14 @@ entityTypes:
           - 4 - not critical
       - name: vulnerability_risk_score
         label: Vulnerability risk score
-        type: string
+        type: number
         required: false
         description: Vulnerability risk score
       - name: spm_taxonomy_node
         label: Taxonomy node
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to spm_taxonomy_node (external)
       - name: checkout
         label: Checkout
         type: enum
@@ -787,7 +787,7 @@ entityTypes:
           - 'false'
       - name: total_vulnerable_items
         label: Total vulnerable items
-        type: string
+        type: number
         required: false
         description: Total vulnerable items
       - name: sn_vul_qualys_id
@@ -802,7 +802,7 @@ entityTypes:
         description: Business need
       - name: created_by_qualys
         label: Created by Qualys
-        type: string
+        type: boolean
         required: false
         description: Created by Qualys
       - name: aliases
@@ -815,26 +815,16 @@ entityTypes:
         type: string
         required: false
         description: Monitoring requirements
-      - name: user_group
-        label: Users supported
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
-      - name: parent
-        label: Parent
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: spm_service_portfolio
         label: Service portfolio
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to spm_service_portfolio (external)
       - name: stakeholders
         label: Stakeholders
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: state
         label: State
         type: enum
@@ -849,12 +839,12 @@ entityTypes:
         label: OT device details
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmdb_ot_entity (external)
       - name: delivery_manager
         label: Delivery manager
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: unit_description
         label: Unit description
         type: string
@@ -907,14 +897,9 @@ entityTypes:
           - internal
           - external
           - both
-      - name: published_ref
-        label: Published Item
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: csat_score
         label: CSAT score
-        type: string
+        type: number
         required: false
         description: CSAT score
       - name: price_model
@@ -927,27 +912,27 @@ entityTypes:
           - fixed
       - name: last_review_date
         label: Last review date
-        type: string
+        type: date
         required: false
         description: Last review date
       - name: end_date
         label: End date
-        type: string
+        type: date
         required: false
         description: End date
       - name: attested_date
         label: Attested Date
-        type: string
+        type: date
         required: false
         description: Attested Date
       - name: business_contact
         label: Business contact
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: order_date
         label: Ordered
-        type: string
+        type: date
         required: false
         description: Ordered
       - name: environment
@@ -957,17 +942,17 @@ entityTypes:
         description: Environment
       - name: due
         label: Due
-        type: string
+        type: date
         required: false
         description: Due
       - name: attested
         label: Attested
-        type: string
+        type: boolean
         required: false
         description: Attested
       - name: unverified
         label: Requires verification
-        type: string
+        type: boolean
         required: false
         description: Requires verification
       - name: correlation_id
@@ -984,12 +969,12 @@ entityTypes:
         label: Location
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmn_location (external)
       - name: asset
         label: Asset
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to alm_asset (external)
       - name: category
         label: Category
         type: string
@@ -997,7 +982,7 @@ entityTypes:
         description: Category
       - name: fault_count
         label: Fault count
-        type: string
+        type: number
         required: false
         description: Fault count
       - name: lease_id
@@ -1016,19 +1001,19 @@ entityTypes:
           - Business Service
       - name: perf_score
         label: Performance score
-        type: string
+        type: number
         required: false
         description: Performance score
       - name: sla
         label: SLA
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sla (external)
       - name: service_owner_delegate
         label: Delegate
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: service_status
         label: Status
         type: enum
@@ -1051,10 +1036,10 @@ entityTypes:
         label: Schedule
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmn_schedule (external)
       - name: skip_sync
         label: Skip sync
-        type: string
+        type: boolean
         required: false
         description: Skip sync
       - name: operational_status
@@ -1078,7 +1063,7 @@ entityTypes:
         description: Product instance identifier
       - name: attestation_score
         label: Attestation Score
-        type: string
+        type: number
         required: false
         description: Attestation Score
       - name: discovery_source
@@ -1088,7 +1073,7 @@ entityTypes:
         description: Discovery source
       - name: first_discovered
         label: First discovered
-        type: string
+        type: date
         required: false
         description: First discovered
       - name: due_in
@@ -1098,7 +1083,7 @@ entityTypes:
         description: Due in
       - name: install_date
         label: Installed
-        type: string
+        type: date
         required: false
         description: Installed
       - name: invoice_number
@@ -1113,7 +1098,7 @@ entityTypes:
         description: GL account
       - name: warranty_expiration
         label: Warranty expiration
-        type: string
+        type: date
         required: false
         description: Warranty expiration
       - name: asset_tag
@@ -1126,29 +1111,24 @@ entityTypes:
         type: string
         required: false
         description: Fully qualified domain name
-      - name: change_control
-        label: Approval group
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: owned_by
         label: Owned by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: checked_out
         label: Checked out
-        type: string
+        type: date
         required: false
         description: Checked out
       - name: business_unit
         label: Business Unit
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to business_unit (external)
       - name: delivery_date
         label: Order received
-        type: string
+        type: date
         required: false
         description: Order received
       - name: install_status
@@ -1160,17 +1140,17 @@ entityTypes:
         label: Cost center
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmn_cost_center (external)
       - name: attested_by
         label: Attested By
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: supported_by
         label: Supported by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: dns_domain
         label: DNS Domain
         type: string
@@ -1183,19 +1163,19 @@ entityTypes:
         description: Name
       - name: assigned
         label: Assigned
-        type: string
+        type: date
         required: false
         description: Assigned
       - name: purchase_date
         label: Purchased
-        type: string
+        type: date
         required: false
         description: Purchased
       - name: life_cycle_stage
         label: Life Cycle Stage
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to life_cycle_stage (external)
       - name: subcategory
         label: Subcategory
         type: string
@@ -1206,36 +1186,26 @@ entityTypes:
         type: string
         required: false
         description: Description
-      - name: assignment_group
-        label: Change Group
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: managed_by
         label: Managed by
         type: string
         required: false
-        description: Reference to [object Object] (external)
-      - name: managed_by_group
-        label: Managed By Group
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: last_discovered
         label: Most recent discovery
-        type: string
+        type: date
         required: false
         description: Most recent discovery
       - name: can_print
         label: Can Print
-        type: string
+        type: boolean
         required: false
         description: Can Print
       - name: manufacturer
         label: Manufacturer
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to core_company (external)
       - name: po_number
         label: PO number
         type: string
@@ -1243,19 +1213,19 @@ entityTypes:
         description: PO number
       - name: checked_in
         label: Checked in
-        type: string
+        type: date
         required: false
         description: Checked in
       - name: vendor
         label: Vendor
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to core_company (external)
       - name: life_cycle_stage_status
         label: Life Cycle Stage Status
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to life_cycle_stage_status (external)
       - name: mac_address
         label: MAC Address
         type: string
@@ -1265,7 +1235,7 @@ entityTypes:
         label: Company
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to core_company (external)
       - name: model_number
         label: Model number
         type: string
@@ -1280,20 +1250,20 @@ entityTypes:
         label: Department
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmn_department (external)
       - name: assigned_to
         label: Assigned to
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: start_date
         label: Start date
-        type: string
+        type: date
         required: false
         description: Start date
       - name: cost
         label: Cost
-        type: string
+        type: number
         required: false
         description: Cost
       - name: comments
@@ -1313,34 +1283,24 @@ entityTypes:
         description: Serial number
       - name: monitor
         label: Monitor
-        type: string
+        type: boolean
         required: false
         description: Monitor
       - name: model_id
         label: Model ID
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmdb_model (external)
       - name: ip_address
         label: IP Address
         type: string
         required: false
         description: IP Address
-      - name: duplicate_of
-        label: Duplicate Of
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: cost_cc
         label: Cost currency
         type: enum
         required: false
         description: Cost currency
-      - name: support_group
-        label: Support group
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: price_unit
         label: Price unit
         type: string
@@ -1355,7 +1315,7 @@ entityTypes:
         label: Maintenance schedule
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmn_schedule (external)
       - name: prerequisites
         label: Prerequisites
         type: string
@@ -1365,8 +1325,48 @@ entityTypes:
         label: Business relation manager
         type: string
         required: false
-        description: Reference to [object Object] (external)
-    relationships: []
+        description: Reference to sys_user (external)
+    relationships:
+      - name: user_group
+        label: Users supported
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Reference to sys_user_group
+      - name: parent
+        label: Parent
+        targetType: cmdb_ci_service
+        cardinality: many_to_one
+        description: Reference to cmdb_ci_service
+      - name: published_ref
+        label: Published Item
+        targetType: cmdb_ci_service
+        cardinality: many_to_one
+        description: Reference to cmdb_ci_service
+      - name: change_control
+        label: Approval group
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Reference to sys_user_group
+      - name: assignment_group
+        label: Change Group
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Reference to sys_user_group
+      - name: managed_by_group
+        label: Managed By Group
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Reference to sys_user_group
+      - name: duplicate_of
+        label: Duplicate Of
+        targetType: cmdb_ci
+        cardinality: many_to_one
+        description: Reference to cmdb_ci
+      - name: support_group
+        label: Support group
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Reference to sys_user_group
   - name: change_request
     label: change_request
     description: 'Imported from ServiceNow table: change_request'
@@ -1375,40 +1375,40 @@ entityTypes:
         label: Model
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to chg_model (external)
       - name: requested_by
         label: Requested by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: software_model
         label: Release version
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to cmdb_sw_component_model (external)
       - name: risk_value
         label: Risk value
-        type: string
+        type: number
         required: false
         description: Risk value
       - name: conflict_last_run
         label: Conflict last run
-        type: string
+        type: date
         required: false
         description: Conflict last run
       - name: outside_maintenance_schedule
         label: Outside maintenance schedule
-        type: string
+        type: boolean
         required: false
         description: Outside maintenance schedule
       - name: production_system
         label: Production system
-        type: string
+        type: boolean
         required: false
         description: Production system
       - name: end_date
         label: Planned end date
-        type: string
+        type: date
         required: false
         description: Planned end date
       - name: review_comments
@@ -1428,12 +1428,12 @@ entityTypes:
           - normal
       - name: requested_by_date
         label: Requested by date
-        type: string
+        type: date
         required: false
         description: Requested by date
       - name: review_date
         label: Review date
-        type: string
+        type: date
         required: false
         description: Review date
       - name: risk_impact_analysis
@@ -1445,7 +1445,7 @@ entityTypes:
         label: Change Projection Summary
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to samp_change_projection_summary (external)
       - name: phase
         label: Phase
         type: enum
@@ -1486,7 +1486,7 @@ entityTypes:
           - accept
       - name: cab_required
         label: CAB required
-        type: string
+        type: boolean
         required: false
         description: CAB required
       - name: justification
@@ -1498,7 +1498,7 @@ entityTypes:
         label: On Hold Change Tasks
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to change_task (external)
       - name: phase_state
         label: Phase state
         type: enum
@@ -1539,19 +1539,19 @@ entityTypes:
         description: Test plan
       - name: on_hold
         label: On hold
-        type: string
+        type: boolean
         required: false
         description: On hold
       - name: devops_change
         label: DevOps change
-        type: string
+        type: boolean
         required: false
         description: DevOps change
       - name: std_change_producer_version
         label: Standard Change Template version
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to std_change_producer_version (external)
       - name: conflict_status
         label: Conflict status
         type: enum
@@ -1580,7 +1580,7 @@ entityTypes:
           - Legislation
       - name: start_date
         label: Planned start date
-        type: string
+        type: date
         required: false
         description: Planned start date
       - name: review_status
@@ -1591,11 +1591,6 @@ entityTypes:
         enumValues:
           - '1'
           - '2'
-      - name: copied_from
-        label: Copied from
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: scope
         label: Scope
         type: enum
@@ -1611,7 +1606,7 @@ entityTypes:
         label: CAB delegate
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: implementation_plan
         label: Implementation plan
         type: string
@@ -1645,7 +1640,7 @@ entityTypes:
           - Network
       - name: cab_date_time
         label: CAB date/time
-        type: string
+        type: date
         required: false
         description: CAB date/time
       - name: backout_plan
@@ -1679,7 +1674,7 @@ entityTypes:
         description: Change plan
       - name: unauthorized
         label: Unauthorized
-        type: string
+        type: boolean
         required: false
         description: Unauthorized
       - name: probability
@@ -1691,34 +1686,34 @@ entityTypes:
           - '3'
           - '1'
           - '2'
-    relationships: []
+    relationships:
+      - name: copied_from
+        label: Copied from
+        targetType: change_request
+        cardinality: many_to_one
+        description: Reference to change_request
   - name: problem
     label: problem
     description: 'Imported from ServiceNow table: problem'
     properties:
-      - name: rfc
-        label: Change request
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: prb_model
         label: Model
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to prb_model (external)
       - name: fix_by
         label: Fix by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: confirmed_at
         label: Confirmed
-        type: string
+        type: date
         required: false
         description: Confirmed
       - name: reopened_at
         label: Last reopened at
-        type: string
+        type: date
         required: false
         description: Last reopened at
       - name: resolution_code
@@ -1733,37 +1728,37 @@ entityTypes:
           - fix_applied
       - name: fix_at
         label: Fix
-        type: string
+        type: date
         required: false
         description: Fix
       - name: reopened_by
         label: Last reopened by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: resolved_at
         label: Resolved
-        type: string
+        type: date
         required: false
         description: Resolved
       - name: confirmed_by
         label: Confirmed by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: resolved_by
         label: Resolved by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: known_error
         label: Known error
-        type: string
+        type: boolean
         required: false
         description: Known error
       - name: workaround_applied
         label: Workaround applied
-        type: string
+        type: boolean
         required: false
         description: Workaround applied
       - name: fix_notes
@@ -1793,19 +1788,14 @@ entityTypes:
           - software
       - name: fix_communicated_at
         label: Fix communicated
-        type: string
+        type: date
         required: false
         description: Fix communicated
-      - name: duplicate_of
-        label: Duplicate of
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: workaround_communicated_by
         label: Workaround communicated by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: subcategory
         label: Subcategory
         type: enum
@@ -1830,27 +1820,27 @@ entityTypes:
           - ip address
       - name: workaround_communicated_at
         label: Workaround communicated
-        type: string
+        type: date
         required: false
         description: Workaround communicated
       - name: fix_communicated_by
         label: Fix communicated by
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: major_problem
         label: Major problem
-        type: string
+        type: boolean
         required: false
         description: Major problem
       - name: primary_known_error_article
         label: Primary Known Error article
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to kb_template_known_error_article (external)
       - name: reopen_count
         label: Reopen count
-        type: string
+        type: number
         required: false
         description: Reopen count
       - name: problem_state
@@ -1869,10 +1859,10 @@ entityTypes:
         label: Origin task
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to task (external)
       - name: related_incidents
         label: Related Incidents
-        type: string
+        type: number
         required: false
         description: Related Incidents
       - name: review_outcome
@@ -1880,26 +1870,31 @@ entityTypes:
         type: string
         required: false
         description: Major problem review notes
-    relationships: []
+    relationships:
+      - name: rfc
+        label: Change request
+        targetType: change_request
+        cardinality: many_to_one
+        description: Reference to change_request
+      - name: duplicate_of
+        label: Duplicate of
+        targetType: problem
+        cardinality: many_to_one
+        description: Reference to problem
   - name: sys_user_group
     label: sys_user_group
     description: 'Imported from ServiceNow table: sys_user_group'
     properties:
       - name: hourly_rate
         label: Hourly rate
-        type: string
+        type: number
         required: false
         description: Hourly rate
       - name: include_members
         label: Include members
-        type: string
+        type: boolean
         required: false
         description: Include members
-      - name: parent
-        label: Parent
-        type: string
-        required: false
-        description: Reference to [object Object] (external)
       - name: email
         label: Group email
         type: string
@@ -1909,7 +1904,7 @@ entityTypes:
         label: Type
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user_group_type (external)
       - name: source
         label: Source
         type: string
@@ -1919,30 +1914,30 @@ entityTypes:
         label: Default assignee
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: vendors
         label: Vendors
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to core_company (external)
       - name: average_daily_fte
         label: Average Daily FTE Hours/Hours Per Person Day
-        type: string
+        type: number
         required: false
         description: Average Daily FTE Hours/Hours Per Person Day
       - name: points
         label: Points
-        type: string
+        type: number
         required: false
         description: Points
       - name: manager
         label: Manager
         type: string
         required: false
-        description: Reference to [object Object] (external)
+        description: Reference to sys_user (external)
       - name: active
         label: Active
-        type: string
+        type: boolean
         required: false
         description: Active
       - name: name
@@ -1962,12 +1957,17 @@ entityTypes:
         description: Description
       - name: exclude_manager
         label: Exclude manager
-        type: string
+        type: boolean
         required: false
         description: Exclude manager
       - name: cost_center
         label: Cost center
         type: string
         required: false
-        description: Reference to [object Object] (external)
-    relationships: []
+        description: Reference to cmn_cost_center (external)
+    relationships:
+      - name: parent
+        label: Parent
+        targetType: sys_user_group
+        cardinality: many_to_one
+        description: Reference to sys_user_group

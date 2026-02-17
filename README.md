@@ -1,44 +1,29 @@
 # project-basanos
 
-> *A living tarot for the agentic age. Gives AI agents a real understanding of what they're operating on, not just API access.*
+> **Multi-system Agentic Rules Engine** - Discovers, promotes, and enforces rules for AI agents across multiple enterprise systems.
 
 **Basanos** (βάσανος) is Greek for a touchstone used to test the purity of gold. In Mike Carey's *Lucifer*, the Basanos is a living tarot deck that reads relationships, predicts consequences, and understands deep architecture. It served no master.
 
 This project brings that idea to AI agents.
 
-## Why not just use Claude Desktop?
-
-If you're a human asking Claude about your ServiceNow instance, Claude is smart enough to figure out most things on the fly. Basanos is redundant for that.
-
-Basanos matters when there is no human in the loop:
-
-- **3am agents can't ask you questions.** An agent resolving incidents overnight needs to *know* there's a change freeze, not guess.
-- **Not every model is Claude.** Smaller, cheaper models need domain knowledge handed to them. Basanos gives them what they can't infer.
-- **Multiple agents need one truth.** Two agents reasoning about the same incident independently will disagree. Basanos gives them a shared map.
-- **System prompts are suggestions. Verdicts are guarantees.** A `BLOCK` with entity IDs and an audit trail beats "please don't do this" in a prompt.
-- **Conversations reset. Knowledge persists.** Every chat starts from zero. Basanos compounds over time.
-- **You can test a knowledge model. You can't test a conversation.**
-
-For the full analysis, see [docs/DIFFERENTIATORS.md](docs/DIFFERENTIATORS.md).
-
 ## The Problem
 
-Most AI agents today can *do* things but don't understand *what* they're working with. They call APIs, get data back, and hope the LLM figures out the rest. That works until it doesn't.
+AI agents can call APIs across ServiceNow, Jira, Salesforce, and more. But no single system knows what the others are doing. ServiceNow business rules cannot see Jira deploys. Jira automation cannot see ServiceNow change freezes. When agents operate across these systems, there is no shared enforcement layer.
 
-An MCP server that queries ServiceNow incidents? That's just a REST wrapper. An MCP server that knows how those incidents connect to CMDB items, change requests, business services, SLA contracts, and the teams who own them? That's what's missing.
+System prompts say "please don't resolve incidents during a change freeze." Basanos says `BLOCKED` with evidence, entity IDs, and an audit trail.
 
 ## What Basanos Does
 
-Basanos sits between your agents and enterprise systems, giving agents three things they don't have today:
+Basanos sits between your agents and enterprise systems. It does three things:
 
-### 1. A map of how things connect
-Not "here's a table" but "here's how incidents, services, CIs, and SLAs relate to each other." An agent using Basanos doesn't just get incident records. It understands that this P1 affects a business service with an SLA penalty, owned by a VP who escalates within 30 minutes.
+### 1. Discovers rules from your data
+Connects to live systems (ServiceNow, Jira, etc.), analyzes patterns (P1 reopen rates, change freezes, SLA breaches), and surfaces rule candidates. These are guardrails you have not built yet, discovered from your actual data.
 
-### 2. Business rules that actually enforce
-When Basanos exposes a "resolve incident" action, it also checks: *is there a change freeze? Is this group overloaded? Has the SLA already breached?* These aren't security rules. They're **business logic** that requires domain knowledge to define.
+### 2. Enforces rules across systems
+An agent calls "resolve incident" through Basanos. Basanos checks ServiceNow for change freezes **and** Jira for active deploys on the same service. No single system sees both risks. Basanos evaluates rules across system boundaries before allowing or blocking the action.
 
-### 3. Agent-to-agent discovery
-Other agents can discover what Basanos knows via A2A, seeing its capabilities like an API contract: what it can do, what it needs, and what it guarantees.
+### 3. Keeps humans in the loop
+Discovered rules start as candidates. A human reviews and promotes them before they enforce. No rule fires without human review. Demote or disable at any time.
 
 ## Architecture
 
@@ -52,10 +37,10 @@ flowchart TD
     end
 
     subgraph Basanos["project-basanos"]
-        OE[Ontology Engine<br/>Typed entity graph + traversal]
-        CE[Constraint Engine<br/>Business logic guardrails + audit]
-        AC[Agent Card Registry<br/>A2A capability discovery]
-        DS[(Domain Schemas<br/>YAML ontologies + constraints)]
+        OE[Entity Model<br/>How things connect across systems]
+        CE[Rules Engine<br/>Discover, promote, enforce]
+        AC[Agent Card<br/>A2A capability discovery]
+        DS[(Domain Config<br/>YAML rules + entity definitions)]
         OE --- DS
         CE --- DS
     end
@@ -70,9 +55,9 @@ flowchart TD
     Basanos -->|REST Connectors| Systems
 ```
 
-## How It Works: ServiceNow Integration Pipeline
+## How It Works
 
-Basanos connects to a live ServiceNow instance to import schemas, sync entities, and discover constraints automatically.
+Basanos connects to live systems, imports their structure, and discovers rules automatically. Here is the ServiceNow pipeline:
 
 ```mermaid
 flowchart LR
@@ -94,8 +79,8 @@ flowchart LR
     end
 
     subgraph Artifacts["Generated Artifacts"]
-        OY[ontology.yaml<br/>Typed entity graph]
-        CY[discovered-constraints.yaml<br/>Business rules from data]
+        OY[ontology.yaml<br/>Entity definitions]
+        CY[discovered-constraints.yaml<br/>Rules from data]
         PJ[provenance.json<br/>Proof of origin]
     end
 
@@ -137,7 +122,7 @@ sequenceDiagram
         Basanos->>ServiceNow: GET /api/now/table/sys_choice?name={table}
         ServiceNow-->>Basanos: Enum values (priority, state, category)
     end
-    Note over Basanos: Map types, detect relationships, write ontology.yaml
+    Note over Basanos: Map types, detect relationships, write entity definitions
     end
 
     rect rgba(255, 200, 200, 0.15)
@@ -146,7 +131,7 @@ sequenceDiagram
         Basanos->>ServiceNow: GET /api/now/table/{table}?limit=100
         ServiceNow-->>Basanos: Live records
     end
-    Note over Basanos: Convert to typed entities, wire cross-references
+    Note over Basanos: Convert to entities, wire cross-references
     end
 
     rect rgba(255, 255, 200, 0.15)
@@ -154,7 +139,7 @@ sequenceDiagram
     Basanos->>ServiceNow: Query change_request, task_sla
     ServiceNow-->>Basanos: Change freezes, SLA breaches
     Note over Basanos: Analyze P1 patterns, group workload, SLA breaches
-    Basanos-->>Operator: 3 constraints discovered with evidence
+    Basanos-->>Operator: 3 rules discovered with evidence
     end
 ```
 
@@ -290,22 +275,22 @@ npm run cli -- full            # In another terminal
 src/
 ├── index.ts                 # MCP server entry point (6 tools, dynamic resources)
 ├── cli.ts                   # CLI: connect, import, sync, discover
-├── dashboard.ts             # Web UI: multi-domain, demo tab, light/dark mode
+├── dashboard.ts             # Web UI: rules engine dashboard, demos, light/dark mode
 ├── loader.ts                # YAML schema/constraint loader
 ├── ontology/
-│   ├── engine.ts            # Ontology resolution and traversal
-│   ├── types.ts             # Core ontology type system
+│   ├── engine.ts            # Entity model resolution and traversal
+│   ├── types.ts             # Core type system
 │   └── schema.ts            # Schema loading and validation
 ├── constraints/
-│   ├── engine.ts            # Constraint evaluation engine with audit trail
-│   ├── types.ts             # Constraint type definitions
-│   └── rule-evaluator.ts    # Declarative rule engine (YAML conditions)
+│   ├── engine.ts            # Rules evaluation engine with audit trail
+│   ├── types.ts             # Rule type definitions
+│   └── rule-evaluator.ts    # Declarative rule evaluator (YAML conditions)
 ├── connectors/
 │   ├── servicenow.ts        # ServiceNow REST API connector
 │   ├── servicenow-mcp.ts    # ServiceNow MCP proxy (OAuth, tool exec, context enrichment)
-│   ├── schema-importer.ts   # sys_dictionary -> ontology.yaml
+│   ├── schema-importer.ts   # sys_dictionary -> entity definitions
 │   ├── entity-sync.ts       # Live table data -> Basanos entities
-│   └── constraint-discovery.ts  # Data pattern analysis -> suggested constraints
+│   └── constraint-discovery.ts  # Data pattern analysis -> suggested rules
 ├── a2a/
 │   └── types.ts             # A2A agent card types and generation
 ├── mock/
@@ -318,7 +303,7 @@ src/
     ├── yaml-loader.ts       # 23-assertion YAML loader tests
     └── scenario-autonomous.ts  # 3am incident demo (with vs without Basanos)
 domains/
-├── itsm/                    # Hand-crafted ITSM ontology (YAML, promoted)
+├── itsm/                    # Hand-crafted ITSM domain (YAML, promoted)
 │   ├── ontology.yaml
 │   └── constraints.yaml
 ├── servicenow-demo/         # Auto-imported from mock server (committed)
@@ -333,7 +318,7 @@ docs/
 └── DIFFERENTIATORS.md       # Critical analysis: why Basanos vs Claude Desktop
 ```
 
-## Proof Domain: ITSM
+## Starting Domain: ITSM
 
 ```mermaid
 erDiagram
@@ -348,7 +333,7 @@ erDiagram
     Business_Service ||--o{ Configuration_Item : "supported by"
 ```
 
-ITSM is the first domain because the relationships are rich, the business rules are clear, and the impact is measurable. An agent with Basanos makes better decisions: fewer wrong escalations, awareness of change freezes, and accurate impact assessment.
+ITSM is the first domain because the relationships are rich, the rules are clear, and the impact is measurable. An agent with Basanos makes better decisions: fewer wrong escalations, awareness of change freezes, and accurate impact assessment.
 
 ## Protocols
 
@@ -360,7 +345,7 @@ ITSM is the first domain because the relationships are rich, the business rules 
 
 ## MCP Proxy Gateway
 
-Basanos can act as a **constraint-enforcing proxy** in front of ServiceNow's native MCP Server. Any MCP client (Claude, Copilot, Google ADK, a human) connects to Basanos instead of directly to ServiceNow. Basanos intercepts tool calls, enriches context from ServiceNow, evaluates constraints, and blocks or forwards the call.
+Basanos can act as a **rules-enforcing proxy** in front of ServiceNow's native MCP Server. Any MCP client (Claude, Copilot, Google ADK, a human) connects to Basanos instead of directly to ServiceNow. Basanos intercepts tool calls, enriches context from the target system, evaluates rules, and blocks or forwards the call.
 
 ```
 Any MCP Client (Claude, Copilot, Google ADK, human)
@@ -376,7 +361,7 @@ SERVICENOW_CLIENT_ID=your-client-id
 SERVICENOW_CLIENT_SECRET='your-client-secret'
 ```
 
-The proxy enriches each tool call with live context (incident priority, CI, active change requests, SLA breaches) before evaluating constraints. This means the same "Resolve incident" tool can be blocked for one incident (active change freeze on its CI) and allowed for another (no changes) - based on real system state, not static rules.
+The proxy enriches each tool call with live context (incident priority, CI, active change requests, SLA breaches) before evaluating rules. This means the same "Resolve incident" tool can be blocked for one incident (active change freeze on its CI) and allowed for another (no changes) - based on real system state, not static configuration.
 
 ### Why not just use ServiceNow business rules?
 
@@ -384,10 +369,10 @@ ServiceNow's server-side rules (business rules, data policies, ACLs) protect Ser
 
 Basanos adds value at a different layer:
 
-- **Cross-system constraints** - "Don't resolve this incident if there's an open deploy in Jira for the same service." ServiceNow rules cannot see Jira.
-- **Discovery** - Basanos finds constraint patterns from your data that you have not built as business rules yet.
+- **Cross-system rules** - "Don't resolve this incident if there's an open deploy in Jira for the same service." ServiceNow rules cannot see Jira.
+- **Discovery** - Basanos finds rule patterns from your data that you have not built as business rules yet.
 - **Protocol gateway** - One enforcement point for all MCP traffic, regardless of which agent or system is calling.
-- **Vendor-neutral** - Same constraint engine whether the target is ServiceNow, Salesforce, or a custom API.
+- **Vendor-neutral** - Same rules engine whether the target is ServiceNow, Salesforce, or a custom API.
 
 For a single-system, single-vendor scenario, business rules are simpler. Basanos is for the layer above - where multiple systems, multiple agents, and multiple protocols intersect.
 
@@ -430,9 +415,7 @@ The problem is well-identified. Anthropic calls it "context engineering" ([Build
 
 ### The gap
 
-No one has built an **open-source, MCP-native domain model** that agents can discover, traverse, and use for constraint-checked decisions. The ideas exist in blogs, in proprietary platforms, and in academic papers. Basanos assembles them into something you can actually run.
-
-The "dbt for agent knowledge" doesn't exist yet. That's Basanos.
+No one has built an **open-source, MCP-native rules engine** that discovers patterns from live systems and enforces them across multiple platforms. The ideas exist in blogs, in proprietary platforms, and in academic papers. Basanos assembles them into something you can actually run.
 
 ## Design Principles
 
@@ -443,9 +426,9 @@ The "dbt for agent knowledge" doesn't exist yet. That's Basanos.
 - **Depth over breadth.** One domain done right beats ten done shallow.
 - **Business logic, not security.** Guardrails for correctness, not threat detection.
 
-### Constraint lifecycle
+### Rule lifecycle
 
-Discovered constraints are not automatically enforced. They follow a deliberate promotion workflow:
+Discovered rules are not automatically enforced. They follow a deliberate promotion workflow:
 
 ```
 candidate  --->  promoted  --->  disabled
@@ -458,15 +441,15 @@ candidate  --->  promoted  --->  disabled
 - **Promoted**: reviewed by a human and actively enforced. Agents calling `basanos_check_constraints` will receive block/warn verdicts from these.
 - **Disabled**: explicitly paused. Was promoted, now turned off (e.g., during a maintenance window).
 
-### Don't build a rule engine
+### Complement, don't replace
 
-Most systems of record already have their own rule engines (ServiceNow Business Rules, Salesforce Flows, Jira Automation). Basanos discovers patterns and surfaces them as guardrails for agents. It does not replace downstream rule engines.
+Most systems of record already have their own rule engines (ServiceNow Business Rules, Salesforce Flows, Jira Automation). Basanos discovers patterns and surfaces them as guardrails for agents. It does not replace those engines.
 
 The right workflow is: Basanos discovers a pattern, a human promotes it as an agent guardrail, and if deeper enforcement is needed, the rule gets implemented in the system of record itself. Basanos is the touchstone, not the courthouse.
 
 ### The 80/20 controls
 
-The dashboard exposes three controls per constraint:
+The dashboard exposes two controls per rule:
 1. **Status** (candidate / promoted / disabled)
 2. **Severity** (block / warn / info)
 3. That's it.
