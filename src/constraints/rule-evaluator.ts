@@ -83,6 +83,6 @@ export function evaluateAllConditions(
   conditions: RuleCondition[],
   metadata: Record<string, unknown>
 ): boolean {
-  if (conditions.length === 0) return false;
+  if (conditions.length === 0) return true; // No conditions = unconditionally active
   return conditions.every((c) => evaluateCondition(c, metadata));
 }

@@ -54,7 +54,7 @@ async function discoverIncidentConstraints(
         description:
           `Found ${recentChanges.length} recent change requests. ` +
           "Incident resolution during active change windows should be blocked.",
-        conditions: [{ field: "change_freeze_active", operator: "eq", value: true }],
+        conditions: [],
         violationMessage:
           "An active change freeze is in effect. Escalate to change management.",
         satisfiedMessage: "No active change freeze detected.",
@@ -91,7 +91,7 @@ async function discoverIncidentConstraints(
         description:
           `${Math.round(reassignRate * 100)}% of active P1 incidents have been reassigned. ` +
           "P1 reassignment disrupts war rooms and escalation chains.",
-        conditions: [{ field: "priority", operator: "eq", value: "P1" }],
+        conditions: [],
         violationMessage:
           "This is a P1 incident. Confirm with incident commander before reassigning.",
         satisfiedMessage: "Standard reassignment procedures apply.",
@@ -140,10 +140,7 @@ async function discoverIncidentConstraints(
           `${overloaded.length} groups have >20 active tickets. ` +
           `Highest: "${maxGroup[0]}" with ${maxGroup[1]} tickets. ` +
           "Overloaded groups lead to SLA breaches.",
-        conditions: [
-          { field: "target_group_active_tickets", operator: "gt", value: 0 },
-          { field: "target_group_ticket_ratio", operator: "gt", value: 10 },
-        ],
+        conditions: [],
         violationMessage:
           "Target group is overloaded. Consider alternative assignment.",
         satisfiedMessage: "Group capacity is within acceptable range.",
@@ -175,10 +172,7 @@ async function discoverIncidentConstraints(
         description:
           `Found ${slaRecords.length} breached SLA records. ` +
           "Incidents with breached SLAs should be reviewed before closure.",
-        conditions: [
-          { field: "sla_breached", operator: "eq", value: true },
-          { field: "sla_has_penalty", operator: "eq", value: true },
-        ],
+        conditions: [],
         violationMessage:
           "This incident breached an SLA. Review required before closing.",
         satisfiedMessage: "No SLA breach detected.",

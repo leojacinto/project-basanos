@@ -1,6 +1,6 @@
 {
   "source": "http://localhost:8090",
-  "importedAt": "2026-02-17T03:19:22.366Z",
+  "importedAt": "2026-02-17T03:37:39.794Z",
   "pipeline": "basanos cli import",
   "tablesImported": 6,
   "fieldsImported": 32,
@@ -13,7 +13,7 @@
     "problem",
     "sys_user_group"
   ],
-  "discoveredAt": "2026-02-17T03:19:22.375Z",
+  "discoveredAt": "2026-02-17T03:37:39.803Z",
   "constraintsDiscovered": 3,
   "discoveryEvidence": [
     {
