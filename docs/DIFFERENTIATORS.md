@@ -1,61 +1,61 @@
 # Why Basanos? (And why not just Claude Desktop?)
 
-A critical, honest assessment of where Basanos adds value and where it doesn't.
+An honest look at where Basanos helps and where it doesn't.
 
-## Where Claude Desktop is genuinely enough
+## Where Claude Desktop is enough
 
-If the use case is a knowledgeable human sitting at a desk, asking Claude about a ServiceNow instance through an MCP server, Claude's general reasoning is strong enough to figure out most entity relationships on the fly. You give it raw CMDB data and incident records, it'll infer the dependency chain. For a single expert interacting with a top-tier model, Basanos is arguably redundant.
+If you're a human asking Claude about your ServiceNow instance through an MCP server, Claude is smart enough to figure out most relationships on the fly. Give it CMDB data and incident records, and it'll work out the dependency chain. For one expert talking to a top-tier model, Basanos is redundant.
 
-Claude Desktop with a good MCP server already provides:
+Claude Desktop with a good MCP server already gives you:
 - Direct querying of ServiceNow data
-- On-the-fly relationship reasoning
-- Human-correctable output (you catch the mistakes)
+- Relationship reasoning on the fly
+- You catch the mistakes (human in the loop)
 
-**If your entire use case is "me + Claude + my data," you probably don't need Basanos.**
+**If your use case is "me + Claude + my data," you probably don't need Basanos.**
 
-## Where Basanos earns its existence
+## Where Basanos matters
 
-The value appears the moment there is no human in the loop.
+The value shows up when there's no human in the loop.
 
-### 1. Autonomous agents need encoded judgment
+### 1. Agents running solo need pre-loaded knowledge
 
-Claude Desktop is a human-in-the-loop tool. You are the touchstone. You read Claude's output and course-correct when it misunderstands a relationship or misses a constraint. You know a change freeze is active because you were in the CAB meeting yesterday. Claude doesn't.
+With Claude Desktop, *you* are the safety net. You read the output, catch mistakes, and know about the change freeze because you were in the CAB meeting yesterday. Claude doesn't know any of that.
 
-An A2A agent resolving incidents at 3am doesn't have you to sanity-check it. The ontology *is* the human judgment, encoded. Without it, the agent reasons from raw data every single time, re-deriving relationships that should be known facts.
+An agent resolving incidents at 3am doesn't have you. It needs the knowledge baked in: what connects to what, what's frozen, what's under SLA. Without that, it reasons from raw data every time, re-figuring out things that should be known facts.
 
 ### 2. Not every model is Claude
 
-Claude's reasoning is best-in-class. A DeepSeek agent, a smaller task-specific model, a customer running GPT-4o-mini to keep costs down: they need the domain understanding *given* to them because they can't reliably infer it from raw data. Basanos levels up weaker models by handing them structured understanding they can't generate themselves.
+Claude's reasoning is best-in-class. But a DeepSeek agent, a small task-specific model, or a team running GPT-4o-mini to save costs? They need domain knowledge *given* to them because they can't reliably work it out from raw data. Basanos hands weaker models the understanding they can't generate themselves.
 
-### 3. Multiple agents need shared truth
+### 3. Multiple agents need one truth
 
-Two agents operating on the same incident via A2A will each independently reason about the entity graph and potentially reach different conclusions. Basanos gives them a single source of semantic truth. No drift, no contradictions.
+Two agents working on the same incident will each reason independently and may reach different conclusions. Basanos gives them a shared map. No drift, no contradictions.
 
-### 4. Constraints are architectural, not conversational
+### 4. Verdicts beat suggestions
 
-Claude Desktop can be *told* "don't resolve during a change freeze" in a system prompt. That is a suggestion to a reasoning engine. It can be ignored, forgotten mid-conversation, or overridden by creative prompting.
+Claude Desktop can be *told* "don't resolve during a change freeze" in a system prompt. That's a suggestion. It can be ignored, forgotten mid-conversation, or overridden by creative prompting.
 
-Basanos returns a structured `BLOCK` verdict with entity IDs, severity levels, and explanations. The difference is the same as "please don't drop the production database" versus a database permission that prevents it. Enterprise operations teams will never trust a suggestion where they need a guarantee.
+Basanos returns a `BLOCK` verdict with entity IDs, severity levels, and explanations. The difference is "please don't drop the production database" versus a permission that prevents it. Operations teams will never trust a suggestion where they need a guarantee.
 
-### 5. Ontology compounds, conversations don't
+### 5. Knowledge compounds, conversations don't
 
-Every Claude Desktop session starts from zero context. Basanos persists the domain model. As the ontology accumulates knowledge (new relationships discovered, constraints refined, edge cases encoded), every connected agent benefits immediately. Knowledge becomes a persistent, growing asset rather than an ephemeral conversation.
+Every Claude Desktop session starts from zero. Basanos persists the domain model. As relationships are discovered, constraints refined, and edge cases encoded, every connected agent benefits immediately. Knowledge grows over time instead of resetting every session.
 
-### 6. Testability and auditability
+### 6. You can test it
 
-You can unit test an ontology. You can regression-test constraint logic. You can audit every verdict with timestamps, entity references, and structured explanations.
+You can unit test a domain model. You can regression-test constraint logic. You can audit every verdict with timestamps and entity references.
 
-You cannot unit test a Claude conversation. For enterprise adoption, compliance requirements, and incident post-mortems, this is non-negotiable.
+You can't unit test a conversation. For enterprise adoption, compliance, and post-mortems, that matters.
 
-### 7. Composition over monoliths
+### 7. It plugs into everything
 
 Claude Desktop is an end-user product. Basanos is infrastructure.
 
-You can plug Basanos into a CI/CD pipeline, embed it in a ServiceNow workflow, wire it into an A2A mesh, or run it as a sidecar for any MCP-compatible agent. You cannot plug Claude Desktop into any of those.
+You can plug it into a CI/CD pipeline, embed it in a ServiceNow workflow, wire it into an agent mesh, or run it as a sidecar for any MCP-compatible agent. You can't do any of that with Claude Desktop.
 
 ## The honest framing
 
-Basanos is not competing with Claude Desktop. It is infrastructure for the world where agents operate without a human in the chair. That is the world ServiceNow, Google, Microsoft, and every major platform vendor is actively building toward.
+Basanos isn't competing with Claude Desktop. It's infrastructure for a world where agents operate without a human in the chair. That's the world ServiceNow, Google, Microsoft, and every major platform vendor is building toward.
 
 Claude Desktop is the present. Basanos is a bet on the autonomous future.
 
@@ -99,11 +99,10 @@ Result: Correct escalation. No violations. Full audit trail.
 
 ## Measuring the difference
 
-The proof is measurable:
-- **Fewer incorrect escalations** (agent understands org structure and ownership)
-- **Zero change freeze violations** (hard constraint, not a suggestion)
-- **Accurate impact assessment** (traverses dependency graph, not guessing)
-- **SLA breach documentation** (constraint engine flags and logs every breach)
-- **Consistent multi-agent behavior** (shared ontology, not independent reasoning)
+- **Fewer wrong escalations** - agent knows the org structure and ownership
+- **Zero change freeze violations** - hard constraint, not a suggestion
+- **Accurate impact assessment** - walks the dependency graph instead of guessing
+- **SLA breach documentation** - every breach is flagged and logged
+- **Consistent multi-agent behavior** - shared knowledge, not independent guessing
 
-These aren't theoretical. They're testable assertions against the constraint engine, today, with the smoke test suite already in the repo.
+These aren't theoretical. They're testable assertions against the constraint engine, today, in the smoke test suite already in the repo.
