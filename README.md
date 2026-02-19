@@ -32,13 +32,12 @@ Basanos explores one answer: an MCP proxy gateway that sits between agents and t
 
 **Cross-system demo** - mock Jira data demonstrates how enforcement would work across system boundaries. ServiceNow data is live; Jira data is mock. The demo shows both directions: ServiceNow catching what Jira missed, and Jira catching what ServiceNow missed.
 
-### Scope and limitations
+### Current scope
 
-- Only one production connector exists (ServiceNow). Jira is mock data for demo purposes. Salesforce is not implemented.
-- Rule discovery is heuristic pattern matching, not machine learning. It surfaces known anti-patterns, not novel ones.
-- Basanos runs as an MCP server that any MCP client can call, but no pre-built agent integrations (Claude, GPT, etc.) ship with the repo.
-- Cross-system semantic alignment (is a Jira "Epic" the same as a ServiceNow "Story"?) is not tackled. That is where the hard ontology problem lives.
-- This is a reference implementation, not production middleware. There is no CI/CD, no security audit, no release versioning beyond v0.1.0.
+- **ServiceNow** is the implemented connector (REST API, schema import, entity sync, MCP proxy). Jira is mock data for the cross-system demo. Additional connectors follow the same pattern.
+- **Rule discovery** uses heuristic pattern matching - coded algorithms that scan for known anti-patterns (change freezes, SLA breaches, P1 reopens).
+- **MCP server** runs and can be called by any MCP client. Agent-specific integrations (Claude Desktop config, etc.) are left to the operator.
+- **Cross-system semantic alignment** (mapping equivalent concepts across platforms) is an open problem not yet addressed.
 
 ## Architecture
 
@@ -398,19 +397,29 @@ The connector auto-detects which mode to use based on your `.env`:
 
 | Variables set | Auth mode | When to use |
 |---|---|---|
-| `CLIENT_ID` + `CLIENT_SECRET` | OAuth client_credentials | Production, service accounts |
+| `CLIENT_ID` + `CLIENT_SECRET` | OAuth client_credentials | **Recommended.** Service accounts, proxy gateway. |
 | `CLIENT_ID` + `CLIENT_SECRET` + `USERNAME` + `PASSWORD` | OAuth password grant | When you need user context with OAuth |
-| `USERNAME` + `PASSWORD` only | Basic auth | Dev, mock server, quick testing |
+| `USERNAME` + `PASSWORD` only | Basic auth | Dev and mock server only |
 
-**OAuth setup in ServiceNow:** System OAuth > Application Registry > Create an OAuth API endpoint. Scope the app to read-only on the tables you need (sys_dictionary, incident, cmdb_ci, etc.).
+### Recommended setup
 
-### What to know about security
+**Use OAuth client_credentials for anything beyond local testing.** Basic auth is supported for convenience with the mock server but should not be used against real instances.
 
-- **Proxy mode.** When acting as an MCP proxy, Basanos can forward write operations to ServiceNow's MCP Server after constraint checks pass. The proxy uses OAuth client_credentials for authentication.
-- **Read-only import.** The schema import pipeline never writes back to ServiceNow.
-- **Import-time only.** Credentials are used during the import step. After that, Basanos serves from local YAML with zero connection to ServiceNow.
-- **Data at rest.** The generated `ontology.yaml` and `provenance.json` contain table structures, field names, and record counts. Not credentials, but structural metadata. Treat these files accordingly in sensitive environments.
-- **Credentials in `.env`.** The `.env` file is gitignored. For production, use OAuth with scoped, read-only service accounts.
+1. **Create a dedicated OAuth client** in ServiceNow: System OAuth > Application Registry > Create an OAuth API endpoint.
+2. **Scope permissions to read-only** on the tables Basanos needs (`sys_dictionary`, `sys_choice`, `incident`, `cmdb_ci`, `cmdb_ci_service`, `change_request`, `task_sla`, `sys_user_group`).
+3. **Use a service account**, not a personal admin account. Basanos does not need admin privileges for schema import or entity sync.
+4. **For the MCP proxy gateway**, the OAuth client needs access to the MCP Server scope. The proxy forwards tool calls after rule evaluation - scope the client to only the tools you intend to expose.
+
+### How credentials are used
+
+- **Schema import** reads from ServiceNow's Table API. It never writes back.
+- **MCP proxy** forwards tool calls (including writes like "resolve incident") only after rules pass. The proxy authenticates via OAuth client_credentials.
+- **After import**, Basanos serves from local YAML files with no connection to ServiceNow. Credentials are only used during import and live proxy calls.
+
+### Data at rest
+
+- The generated `ontology.yaml` and `provenance.json` contain table structures, field names, and record counts. No credentials, but structural metadata. Treat these files accordingly in sensitive environments.
+- The `.env` file is gitignored. Do not commit credentials to version control.
 
 ## Related Work
 
