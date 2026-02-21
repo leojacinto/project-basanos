@@ -222,7 +222,7 @@ docker compose up
 
 Open [http://localhost:3001](http://localhost:3001) - the dashboard loads with a mock ServiceNow instance, sample ITSM data, and 11 discovery rules.
 
-**Docker Hub image**: [`leofrancia08489/project-basanos:v0.1.0`](https://hub.docker.com/r/leofrancia08489/project-basanos)
+**Docker Hub image**: [`leofrancia08489/project-basanos:v0.2.0`](https://hub.docker.com/r/leofrancia08489/project-basanos)
 
 ### Step 3: Connect to a real ServiceNow instance (optional)
 
