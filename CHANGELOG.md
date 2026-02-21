@@ -2,7 +2,21 @@
 
 All notable changes to project-basanos are documented here.
 
-## 2026-02-18
+## 2026-02-21
+
+### Dark theme redesign
+- Updated dark mode to warm gold/tarot aesthetic matching the Basanos visual identity
+- Background: warm near-black, accents: gold, text: warm cream, borders: dark gold
+- Light theme unchanged
+
+## 2026-02-18 - 2026-02-19
+
+### README reframing
+- Repositioned as a reference implementation and applied study, not a product
+- Added "What this is", "The question", "What the code does", "Current scope" sections
+- Added "Related Work" section acknowledging Cerbos, SAFE-MCP, TrojAI, Red Hat
+- Strengthened Security & Authentication: OAuth recommended setup, scoping guidance
+- Replaced "Design Principles" with "Concepts Explored"
 
 ### MCP Proxy Gateway
 - Basanos now acts as a constraint-enforcing proxy in front of ServiceNow's native MCP Server

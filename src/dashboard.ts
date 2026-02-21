@@ -807,18 +807,18 @@ function dashboardHtml(): string {
     }
 
     [data-theme="dark"] {
-      --bg: #0f172a;
-      --bg-secondary: #1e293b;
-      --bg-card: #1e293b;
-      --text: #e2e8f0;
-      --text-secondary: #94a3b8;
-      --border: #334155;
-      --accent: #818cf8;
-      --accent-light: #1e1b4b;
-      --success: #4ade80;
-      --warn: #fbbf24;
-      --danger: #f87171;
-      --shadow: 0 1px 3px rgba(0,0,0,0.3);
+      --bg: #1a1613;
+      --bg-secondary: #242018;
+      --bg-card: #242018;
+      --text: #d4c5a0;
+      --text-secondary: #9e8e6a;
+      --border: #5c4f35;
+      --accent: #c5a55a;
+      --accent-light: #2e2820;
+      --success: #7ab648;
+      --warn: #d4a030;
+      --danger: #c45a4a;
+      --shadow: 0 1px 3px rgba(0,0,0,0.4);
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
