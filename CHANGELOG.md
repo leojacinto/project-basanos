@@ -2,6 +2,19 @@
 
 All notable changes to project-basanos are documented here.
 
+## 2026-02-22
+
+### Connector plugin architecture
+- New `ConnectorPlugin` interface (`src/connectors/types.ts`) defining the mandatory contract for all connectors
+- New `ConnectorRegistry` (`src/connectors/registry.ts`) for auto-discovery and loading of configured connectors
+- ServiceNow connector wrapped as a plugin (`src/connectors/servicenow/index.ts`)
+- Mock Jira connector extracted from dashboard into its own plugin (`src/connectors/jira/index.ts`)
+- Cross-system constraint (`cross-system:jira_deploy_active`) now lives in the Jira plugin, not hardcoded in dashboard
+- CLI refactored to use registry instead of direct ServiceNow imports
+- Dashboard multi-system demo refactored to use Jira plugin for enrichment
+- README updated with full plugin architecture documentation, mandatory contract tables, and example connector code
+- To add a new connector: create `src/connectors/yourconnector/index.ts`, implement `ConnectorPlugin`, register in `registry.ts`
+
 ## 2026-02-21
 
 ### Dark theme redesign

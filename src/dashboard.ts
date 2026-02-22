@@ -22,6 +22,8 @@ import { loadDomainFromYaml, loadConstraintsFromYaml } from "./loader.js";
 import { generateAgentCard } from "./a2a/types.js";
 import { load as yamlLoad } from "js-yaml";
 import { ServiceNowMCPClient, parseMCPServerUrl } from "./connectors/servicenow-mcp.js";
+import { ConnectorRegistry } from "./connectors/registry.js";
+import type { ConnectorPlugin } from "./connectors/types.js";
 
 // ── Initialize engines (load all YAML domains) ───────────────
 
@@ -451,49 +453,51 @@ app.post("/api/demo/execute", express.json(), async (req, res) => {
   }
 });
 
-// ── Mock Jira (Multi-system Demo) ────────────────────────────
+// ── Cross-system connectors (plugin registry) ───────────────
 
-const mockJiraDeploys = [
-  { key: "DEPLOY-4455", summary: "Recommendation Engine ML Model Update", status: "In Progress", service: "recommendationservice", assignee: "s.patel", created: "2026-02-16" },
-  { key: "DEPLOY-4460", summary: "Payment Gateway TLS Upgrade", status: "Done", service: "ePayment", assignee: "m.jones", created: "2026-02-10" },
-];
+console.log("\nLoading connector plugins...");
+const connectorRegistry = new ConnectorRegistry();
+const jiraPlugin = connectorRegistry.get("jira") as ConnectorPlugin & { getActiveDeploys?: () => Array<Record<string, string>>; getAllDeploys?: () => Array<Record<string, string>> } | undefined;
+
+// Register cross-system constraints from plugins
+if (jiraPlugin) {
+  jiraPlugin.discoverConstraints("itsm", "").then((discovered) => {
+    for (const c of discovered) {
+      const def: import("./constraints/types.js").ConstraintDefinition = {
+        id: c.id,
+        name: c.name,
+        domain: c.domain,
+        appliesTo: c.appliesTo,
+        relevantActions: c.relevantActions,
+        severity: c.severity as import("./constraints/types.js").ConstraintSeverity,
+        status: (c.status || "candidate") as import("./constraints/types.js").ConstraintStatus,
+        description: c.description,
+        evaluate: c.evaluate || (async (context) => ({
+          constraintId: c.id,
+          satisfied: true,
+          severity: c.severity as import("./constraints/types.js").ConstraintSeverity,
+          explanation: c.satisfiedMessage,
+          involvedEntities: [context.targetEntity],
+        })),
+      };
+      constraintEngine.register(def);
+      // Apply saved overrides (in case user promoted it before)
+      const csOverride = constraintOverrides[c.id];
+      if (csOverride?.status) constraintEngine.updateConstraintStatus(c.id, csOverride.status as import("./constraints/types.js").ConstraintStatus);
+    }
+    console.log(`Registered ${discovered.length} cross-system constraint(s) from Jira plugin`);
+  }).catch((err) => console.warn("Failed to load Jira constraints:", String(err)));
+}
 
 app.get("/api/mock-jira/deploys", (req, res) => {
+  if (!jiraPlugin) return res.json({ deploys: [] });
   const service = (req.query.service as string || "").toLowerCase();
-  if (!service) {
-    return res.json({ deploys: mockJiraDeploys.filter(d => d.status !== "Done") });
-  }
-  const matches = mockJiraDeploys.filter(d => d.status !== "Done" && d.service.toLowerCase().includes(service));
+  const allDeploys = (jiraPlugin.getAllDeploys?.() || []) as Array<Record<string, string>>;
+  const active = allDeploys.filter((d: Record<string, string>) => d.status !== "Done");
+  if (!service) return res.json({ deploys: active });
+  const matches = active.filter((d: Record<string, string>) => (d.service || "").toLowerCase().includes(service));
   res.json({ deploys: matches });
 });
-
-// Cross-system constraint: block resolve if Jira has open deploy on same service
-const crossSystemConstraint: import("./constraints/types.js").ConstraintDefinition = {
-  id: "cross-system:jira_deploy_active",
-  name: "Active Jira Deploy on Service",
-  domain: "itsm",
-  appliesTo: ["incident"],
-  relevantActions: ["resolve", "close"],
-  severity: "block" as import("./constraints/types.js").ConstraintSeverity,
-  status: "candidate" as import("./constraints/types.js").ConstraintStatus,
-  description: "Blocks incident resolution when Jira has an active deploy ticket targeting the same service or CI. A deploy in progress means the environment is changing - resolving incidents against it risks false fixes.",
-  evaluate: async (context) => {
-    const deploys = (context.metadata.jira_open_deploys as number) || 0;
-    return {
-      constraintId: "cross-system:jira_deploy_active",
-      satisfied: deploys === 0,
-      severity: "block" as import("./constraints/types.js").ConstraintSeverity,
-      explanation: deploys > 0
-        ? `Jira has ${deploys} active deploy(s) on this service. Resolving the incident while a deploy is in progress risks a false fix. Wait for deploy completion.`
-        : "No active Jira deploys on this service.",
-      involvedEntities: [context.targetEntity],
-    };
-  },
-};
-constraintEngine.register(crossSystemConstraint);
-// Apply saved overrides (in case user promoted it before)
-const csOverride = constraintOverrides["cross-system:jira_deploy_active"];
-if (csOverride?.status) constraintEngine.updateConstraintStatus("cross-system:jira_deploy_active", csOverride.status as import("./constraints/types.js").ConstraintStatus);
 
 // Multi-system execute: enriches from both ServiceNow AND mock Jira
 app.post("/api/demo/multi-execute", express.json(), async (req, res) => {
@@ -514,14 +518,19 @@ app.post("/api/demo/multi-execute", express.json(), async (req, res) => {
     }
     steps.push({ step: "enriched_sn", metadata: { ...metadata } });
 
-    // Step 2: Enrich from Jira (cross-system)
+    // Step 2: Enrich from Jira (cross-system via plugin)
     const ciName = (metadata.ci_name as string) || "";
     steps.push({ step: "enriching_jira", message: `Querying Jira for active deploys on "${ciName}"...` });
     const serviceKey = ciName.split("/")[0]; // e.g. "cartservice/ecommerce/CloudObs" -> "cartservice"
-    const jiraMatches = mockJiraDeploys.filter(d => d.status !== "Done" && d.service.toLowerCase().includes(serviceKey.toLowerCase()));
-    metadata.jira_open_deploys = jiraMatches.length;
-    metadata.jira_deploy_details = jiraMatches.map(d => ({ key: d.key, summary: d.summary, status: d.status, assignee: d.assignee }));
-    steps.push({ step: "enriched_jira", jira: { service: serviceKey, deploys: jiraMatches.length, details: metadata.jira_deploy_details } });
+    if (jiraPlugin) {
+      const jiraContext = await jiraPlugin.enrichContext(serviceKey, action);
+      metadata.jira_open_deploys = jiraContext.jira_open_deploys || 0;
+      metadata.jira_deploy_details = jiraContext.jira_deploy_details || [];
+    } else {
+      metadata.jira_open_deploys = 0;
+      metadata.jira_deploy_details = [];
+    }
+    steps.push({ step: "enriched_jira", jira: { service: serviceKey, deploys: metadata.jira_open_deploys, details: metadata.jira_deploy_details } });
 
     // Step 3: Evaluate constraints (both SN and cross-system)
     steps.push({ step: "evaluating", message: `Evaluating constraints for action: ${action} (ServiceNow + Jira)` });

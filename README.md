@@ -300,7 +300,13 @@ src/
 │   ├── types.ts             # Rule type definitions
 │   └── rule-evaluator.ts    # Declarative rule evaluator (YAML conditions)
 ├── connectors/
-│   ├── servicenow.ts        # ServiceNow REST API connector
+│   ├── types.ts             # ConnectorPlugin interface (the plugin contract)
+│   ├── registry.ts          # Plugin registry (auto-discovers configured connectors)
+│   ├── servicenow/          # ServiceNow plugin
+│   │   └── index.ts         # Plugin entry point (wraps SN-specific code)
+│   ├── jira/                # Jira plugin (mock, demonstrates the pattern)
+│   │   └── index.ts         # Plugin entry point (mock data, cross-system constraint)
+│   ├── servicenow.ts        # ServiceNow REST API client
 │   ├── servicenow-mcp.ts    # ServiceNow MCP proxy (OAuth, tool exec, context enrichment)
 │   ├── schema-importer.ts   # sys_dictionary -> entity definitions
 │   ├── entity-sync.ts       # Live table data -> Basanos entities
@@ -330,6 +336,128 @@ domains/
     └── provenance.json
 docs/
 └── DIFFERENTIATORS.md       # Critical analysis: why Basanos vs Claude Desktop
+```
+
+## Connector Plugin Architecture
+
+Basanos uses a plugin system for connecting to external systems. Each connector is self-contained and implements a mandatory contract. The core engine (rules evaluator, dashboard, CLI) never imports system-specific code directly - it talks to the `ConnectorPlugin` interface.
+
+### Adding a new connector
+
+1. Create `src/connectors/yourconnector/index.ts`
+2. Export a `createPlugin()` function that returns a `ConnectorPlugin`
+3. Register it in `src/connectors/registry.ts` (one import, one line in the array)
+
+That is it. No changes to the CLI, dashboard, or rules engine.
+
+### The mandatory contract
+
+Every connector **must** implement all of the following. See `src/connectors/types.ts` for the full TypeScript interface.
+
+**Identity**
+
+| Method | What it does |
+|---|---|
+| `id` | Unique identifier (e.g., `"servicenow"`, `"jira"`) |
+| `label` | Human-readable name (e.g., `"ServiceNow"`) |
+| `description` | One-line summary |
+
+**Configuration**
+
+| Method | What it does |
+|---|---|
+| `getRequiredEnvVars()` | Declare what env vars are needed. The CLI uses this to tell operators what is missing. Mark secrets with `secret: true`. |
+| `configureFromEnv()` | Read `process.env` and return `true` if the connector is ready. Must not throw. |
+
+**Pipeline (import flow)**
+
+| Method | What it does |
+|---|---|
+| `testConnection()` | Verify the target system is reachable. Return `{ success, message }`. |
+| `getDefaultTables()` | Tables/objects to import when none specified. |
+| `importSchemas(tables, outputDir)` | Query the target system's metadata API, map types to Basanos types, write `ontology.yaml` and `provenance.json`. All system-specific type mapping happens here. |
+| `syncEntities(ontologyEngine, options)` | Query live records, map fields to Basanos properties, add entities to the engine. |
+| `discoverConstraints(domainName, outputPath)` | Run heuristic analysis, return candidates with evidence. Write `discovered-constraints.yaml`. |
+
+**Runtime (called per-request during enforcement)**
+
+| Method | What it does |
+|---|---|
+| `enrichContext(entityRef, action)` | Query the target system for current state. Return metadata keys that match your constraint conditions (e.g., `{ change_freeze_active: true }`). |
+
+**Optional**
+
+| Method | What it does |
+|---|---|
+| `mcpProxy` | If the target system has its own MCP server, implement this to proxy tool calls through Basanos. |
+
+### What every discovered constraint must include
+
+Constraints returned by `discoverConstraints()` are candidates for human review. Each one must have:
+
+- **id** - unique, prefixed with domain (e.g., `"servicenow-live:discovered:change_freeze"`)
+- **appliesTo** - entity types this rule checks (e.g., `["incident"]`)
+- **relevantActions** - actions that trigger this rule (e.g., `["resolve", "close"]`)
+- **severity** - `block`, `warn`, or `info`
+- **evidence** - proof from the data that this pattern exists
+- **violationMessage** - what to tell the agent when blocked
+- **satisfiedMessage** - what to tell the agent when clear
+
+Without all of these, the constraint is not useful to the rules engine or to the human reviewing it.
+
+### Existing connectors
+
+| Connector | Status | What it does |
+|---|---|---|
+| `servicenow` | Production | Full pipeline: REST API, schema import, entity sync, 11 discovery heuristics, MCP proxy |
+| `jira` | Mock/Demo | Cross-system demo with hardcoded deploy data. Template for a real Jira connector. |
+
+### Example: minimal connector
+
+```typescript
+// src/connectors/yourconnector/index.ts
+import type { ConnectorPlugin } from "../types.js";
+
+class YourPlugin implements ConnectorPlugin {
+  readonly id = "yourconnector";
+  readonly label = "Your System";
+  readonly description = "Connects to Your System via REST API.";
+
+  getRequiredEnvVars() {
+    return [
+      { name: "YOUR_API_URL", description: "Base URL", required: true },
+      { name: "YOUR_API_KEY", description: "API key", required: true, secret: true },
+    ];
+  }
+
+  configureFromEnv() {
+    return !!(process.env.YOUR_API_URL && process.env.YOUR_API_KEY);
+  }
+
+  async testConnection() { /* ... */ }
+  getDefaultTables() { return ["issues", "projects"]; }
+  async importSchemas(tables, outputDir) { /* ... */ }
+  async syncEntities(ontologyEngine, options) { /* ... */ }
+  async discoverConstraints(domainName, outputPath) { /* ... */ }
+  async enrichContext(entityRef, action) { /* ... */ }
+}
+
+export function createPlugin(): ConnectorPlugin {
+  return new YourPlugin();
+}
+```
+
+Then register it:
+
+```typescript
+// src/connectors/registry.ts
+import { createPlugin as createYourPlugin } from "./yourconnector/index.js";
+
+const AVAILABLE_PLUGINS = [
+  createServiceNowPlugin,
+  createJiraPlugin,
+  createYourPlugin,  // add here
+];
 ```
 
 ## Starting Domain: ITSM

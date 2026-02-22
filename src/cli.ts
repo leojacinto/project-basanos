@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Basanos CLI - connect to ServiceNow, import schemas,
+ * Basanos CLI - connect to a system, import schemas,
  * sync entities, and discover constraints.
  *
+ * Uses the connector plugin registry to find configured connectors.
+ *
  * Usage:
- *   npx basanos connect          Test ServiceNow connection
- *   npx basanos import           Import table schemas → ontology.yaml
+ *   npx basanos connect          Test connection
+ *   npx basanos import           Import table schemas -> ontology.yaml
  *   npx basanos sync             Sync live entities into Basanos
  *   npx basanos discover         Discover constraints from data patterns
  *   npx basanos full             Run all steps in sequence
@@ -16,14 +18,9 @@ import "dotenv/config";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
-import { createConnectorFromEnv } from "./connectors/servicenow.js";
-import { importSchemas } from "./connectors/schema-importer.js";
-import { syncAllTables } from "./connectors/entity-sync.js";
-import { discoverConstraints } from "./connectors/constraint-discovery.js";
+import { ConnectorRegistry } from "./connectors/registry.js";
 import { OntologyEngine } from "./ontology/engine.js";
-import { ConstraintEngine } from "./constraints/engine.js";
-import { loadDomainFromYaml, loadConstraintsFromYaml } from "./loader.js";
-import { validateDomainSchema } from "./ontology/schema.js";
+import { loadDomainFromYaml } from "./loader.js";
 import { existsSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -38,28 +35,37 @@ async function main() {
 
   if (command === "help") {
     console.log("Commands:");
-    console.log("  connect    Test ServiceNow connection");
-    console.log("  import     Import table schemas from ServiceNow");
+    console.log("  connect    Test connection to configured system");
+    console.log("  import     Import table schemas");
     console.log("  sync       Sync live entities into Basanos");
     console.log("  discover   Discover constraints from data patterns");
-    console.log("  full       Run all steps (connect → import → sync → discover)");
-    console.log("\nConfiguration: Set SERVICENOW_* variables in .env");
+    console.log("  full       Run all steps (connect -> import -> sync -> discover)");
+    console.log("\nConfiguration: Set connector env vars in .env (see README)");
     return;
   }
 
-  const connector = createConnectorFromEnv();
+  console.log("Loading connector plugins...");
+  const registry = new ConnectorRegistry();
+  const connector = registry.getPrimary();
+
   if (!connector) {
-    console.error("❌ Missing ServiceNow configuration.");
-    console.error("   Set SERVICENOW_INSTANCE_URL and either:");
-    console.error("     OAuth: SERVICENOW_CLIENT_ID + SERVICENOW_CLIENT_SECRET");
-    console.error("     Basic: SERVICENOW_USERNAME + SERVICENOW_PASSWORD");
+    console.error("❌ No configured connector found.");
+    console.error("   Available connectors:");
+    for (const p of registry.getAll()) {
+      console.error(`     ${p.id}: ${p.label}`);
+      for (const v of p.getRequiredEnvVars().filter((e) => e.required)) {
+        console.error(`       Required: ${v.name} - ${v.description}`);
+      }
+    }
     process.exit(1);
   }
+
+  console.log(`Using connector: ${connector.label} [${connector.id}]\n`);
 
   // ── Connect ────────────────────────────────────────────────
 
   if (command === "connect" || command === "full") {
-    console.log("Step 1: Testing ServiceNow connection...");
+    console.log("Step 1: Testing connection...");
     const result = await connector.testConnection();
     if (result.success) {
       console.log(`✅ ${result.message}\n`);
@@ -72,20 +78,21 @@ async function main() {
 
   // ── Import ─────────────────────────────────────────────────
 
-  const importTables = (process.env.SERVICENOW_IMPORT_TABLES || "incident,cmdb_ci,cmdb_ci_service,change_request,problem,sys_user_group")
-    .split(",")
-    .map((t) => t.trim());
+  const importTables = connector.getDefaultTables();
 
-  // Mock (localhost) writes to servicenow-demo (committed), real writes to servicenow-live (gitignored)
-  const instanceUrl = connector.getInstanceUrl();
-  const isMock = instanceUrl.includes("localhost") || instanceUrl.includes("127.0.0.1");
-  const domainFolder = isMock ? "servicenow-demo" : "servicenow-live";
+  // Determine output folder based on connector
+  const connWithUrl = connector as { getInstanceUrl?: () => string };
+  const connInstanceUrl = (typeof connWithUrl.getInstanceUrl === "function")
+    ? connWithUrl.getInstanceUrl()
+    : "";
+  const isMock = !connInstanceUrl || connInstanceUrl.includes("localhost") || connInstanceUrl.includes("127.0.0.1");
+  const domainFolder = isMock ? `${connector.id}-demo` : `${connector.id}-live`;
   const importOutputDir = resolve(projectRoot, "domains", domainFolder);
   console.log(`  Output: domains/${domainFolder}/ ${isMock ? "(mock, committed)" : "(live, gitignored)"}\n`);
 
   if (command === "import" || command === "full") {
-    console.log("Step 2: Importing schemas from ServiceNow...");
-    const result = await importSchemas(connector, importTables, importOutputDir);
+    console.log("Step 2: Importing schemas...");
+    const result = await connector.importSchemas(importTables, importOutputDir);
     console.log(`\n📊 Import summary: ${result.tablesImported} tables, ${result.fieldsImported} fields, ${result.referencesFound} relationships\n`);
     if (command === "import") return;
   }
@@ -102,7 +109,7 @@ async function main() {
     const liveYaml = resolve(importOutputDir, "ontology.yaml");
 
     if (existsSync(liveYaml)) {
-      console.log("  Using imported ServiceNow ontology");
+      console.log("  Using imported ontology");
       const domain = loadDomainFromYaml(liveYaml);
       ontologyEngine.registerDomain(domain);
     } else if (existsSync(itsmYaml)) {
@@ -115,7 +122,7 @@ async function main() {
     }
 
     const limit = parseInt(process.env.SERVICENOW_SYNC_LIMIT || "100", 10);
-    const syncResult = await syncAllTables(connector, ontologyEngine, { limit });
+    const syncResult = await connector.syncEntities(ontologyEngine, { limit });
 
     // Show a traversal example if we synced incidents
     const allEntities = ontologyEngine.getAllEntities();
@@ -141,8 +148,9 @@ async function main() {
 
   if (command === "discover" || command === "full") {
     console.log("Step 4: Discovering constraints from live data...");
+    const domainName = domainFolder;
     const outputPath = resolve(importOutputDir, "discovered-constraints.yaml");
-    const discovered = await discoverConstraints(connector, outputPath);
+    const discovered = await connector.discoverConstraints(domainName, outputPath);
     console.log(`\n📊 Discovery summary: ${discovered.length} constraints suggested`);
     for (const c of discovered) {
       console.log(`  - ${c.name} [${c.severity}] - ${c.evidence}`);
