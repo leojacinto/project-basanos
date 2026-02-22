@@ -934,6 +934,7 @@ function dashboardHtml(): string {
     .badge-block { background: var(--danger); color: white; }
     .badge-warn { background: var(--warn); color: #1a1a2e; }
     .badge-info { background: var(--accent); color: white; }
+    .badge-success { background: var(--success); color: white; }
     .badge-type { background: var(--accent-light); color: var(--accent); border: 1px solid var(--accent); }
 
     .prop-table {
@@ -1493,7 +1494,7 @@ function dashboardHtml(): string {
           <div class="card">
             <h2>
               #\${e.id}
-              <span class="badge \${e.verdict.allowed ? 'badge-info' : 'badge-block'}">\${e.verdict.allowed ? 'ALLOWED' : 'BLOCKED'}</span>
+              <span class="badge \${e.verdict.allowed ? 'badge-success' : 'badge-block'}">\${e.verdict.allowed ? 'ALLOWED' : 'BLOCKED'}</span>
             </h2>
             <p><strong>Action:</strong> \${e.verdict.context.intendedAction} on <span class="badge badge-type">\${e.verdict.context.targetEntity}</span></p>
             <p><strong>Time:</strong> \${e.timestamp}</p>

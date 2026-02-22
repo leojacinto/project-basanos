@@ -9,6 +9,9 @@ All notable changes to project-basanos are documented here.
 - Background: warm near-black, accents: gold, text: warm cream, borders: dark gold
 - Light theme unchanged
 
+### Bug fixes
+- ALLOWED verdict pill in Audit Trail now uses green (success) instead of gold (accent)
+
 ## 2026-02-18 - 2026-02-19
 
 ### README reframing
