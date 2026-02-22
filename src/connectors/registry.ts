@@ -1,54 +1,85 @@
 /**
  * Connector Registry
  *
- * Central registry for all connector plugins. Discovers which connectors
- * are configured (have env vars set) and makes them available to the
- * CLI, dashboard, and MCP server.
+ * Central registry for all connector plugins. Auto-discovers connectors
+ * by scanning for subdirectories of src/connectors/ that contain an
+ * index.ts (compiled to index.js) exporting a createPlugin() function.
  *
- * To register a new connector:
- *   1. Import its createPlugin function
- *   2. Add it to the AVAILABLE_PLUGINS array below
+ * To add a new connector:
+ *   1. Create src/connectors/yourconnector/index.ts
+ *   2. Export: function createPlugin(): ConnectorPlugin
+ *   That is it. No edits to this file needed.
  */
 
+import { readdirSync, existsSync } from "fs";
+import { dirname, resolve, join } from "path";
+import { fileURLToPath, pathToFileURL } from "url";
 import type { ConnectorPlugin } from "./types.js";
-import { createPlugin as createServiceNowPlugin } from "./servicenow/index.js";
-import { createPlugin as createJiraPlugin } from "./jira/index.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
- * All available connector plugins.
- * Add new connectors here.
+ * Directories to skip when scanning for plugins.
+ * These contain shared code, not plugins.
  */
-const AVAILABLE_PLUGINS: Array<() => ConnectorPlugin> = [
-  createServiceNowPlugin,
-  createJiraPlugin,
-];
+const SKIP_DIRS = new Set(["node_modules", "__tests__", "test"]);
 
 export class ConnectorRegistry {
   private plugins: Map<string, ConnectorPlugin> = new Map();
   private configured: Map<string, ConnectorPlugin> = new Map();
 
-  constructor() {
-    this.loadPlugins();
+  /**
+   * Create and initialize a registry by scanning for plugins.
+   * This is the primary way to create a registry.
+   */
+  static async create(): Promise<ConnectorRegistry> {
+    const registry = new ConnectorRegistry();
+    await registry.discoverPlugins();
+    return registry;
   }
 
   /**
-   * Load all available plugins and check which ones are configured.
+   * Scan the connectors directory for subdirectories containing index.js.
+   * Each valid plugin module must export a createPlugin() function.
    */
-  private loadPlugins(): void {
-    for (const factory of AVAILABLE_PLUGINS) {
-      try {
-        const plugin = factory();
-        this.plugins.set(plugin.id, plugin);
+  private async discoverPlugins(): Promise<void> {
+    const entries = readdirSync(__dirname, { withFileTypes: true });
 
-        if (plugin.configureFromEnv()) {
-          this.configured.set(plugin.id, plugin);
-          console.log(`  Connector [${plugin.id}]: configured`);
-        } else {
-          console.log(`  Connector [${plugin.id}]: available (not configured)`);
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (SKIP_DIRS.has(entry.name)) continue;
+
+      const indexPath = resolve(__dirname, entry.name, "index.js");
+      if (!existsSync(indexPath)) continue;
+
+      try {
+        const moduleUrl = pathToFileURL(indexPath).href;
+        const mod = await import(moduleUrl);
+
+        if (typeof mod.createPlugin !== "function") {
+          console.warn(`  Connector [${entry.name}]: skipped (no createPlugin export)`);
+          continue;
         }
+
+        const plugin: ConnectorPlugin = mod.createPlugin();
+        this.registerPlugin(plugin);
       } catch (err) {
-        console.warn(`  Connector plugin failed to load: ${String(err)}`);
+        console.warn(`  Connector [${entry.name}]: failed to load - ${String(err)}`);
       }
+    }
+  }
+
+  /**
+   * Register a plugin instance and check if it is configured.
+   */
+  private registerPlugin(plugin: ConnectorPlugin): void {
+    this.plugins.set(plugin.id, plugin);
+
+    if (plugin.configureFromEnv()) {
+      this.configured.set(plugin.id, plugin);
+      console.log(`  Connector [${plugin.id}]: configured`);
+    } else {
+      console.log(`  Connector [${plugin.id}]: available (not configured)`);
     }
   }
 

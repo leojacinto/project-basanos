@@ -25,7 +25,7 @@ import { loadDomainFromYaml, loadConstraintsFromYaml } from "./loader.js";
 
 import { readResource } from "./server/resources.js";
 import { generateAgentCard } from "./a2a/types.js";
-import { ServiceNowMCPClient } from "./connectors/servicenow-mcp.js";
+import { ServiceNowMCPClient } from "./connectors/servicenow/mcp-proxy.js";
 import { config as dotenvConfig } from "dotenv";
 
 dotenvConfig();

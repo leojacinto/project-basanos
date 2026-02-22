@@ -7,9 +7,9 @@
  * actual production dependency graphs.
  */
 
-import type { ServiceNowConnector, ServiceNowRecord } from "./servicenow.js";
-import type { OntologyEngine } from "../ontology/engine.js";
-import type { Entity, EntityId } from "../ontology/types.js";
+import type { ServiceNowConnector, ServiceNowRecord } from "./client.js";
+import type { OntologyEngine } from "../../ontology/engine.js";
+import type { Entity, EntityId } from "../../ontology/types.js";
 
 /**
  * Field mappings: which ServiceNow fields map to Basanos entity properties

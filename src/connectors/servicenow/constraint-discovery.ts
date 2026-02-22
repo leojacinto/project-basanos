@@ -10,7 +10,7 @@
 import { writeFileSync, existsSync, readFileSync } from "fs";
 import { dirname, resolve } from "path";
 import { dump as yamlDump } from "js-yaml";
-import type { ServiceNowConnector } from "./servicenow.js";
+import type { ServiceNowConnector } from "./client.js";
 
 export interface DiscoveredConstraint {
   id: string;

@@ -20,14 +20,14 @@ import type {
   MCPProxyCapability,
   MCPProxyTool,
 } from "../types.js";
-import { ServiceNowConnector, createConnectorFromEnv } from "../servicenow.js";
-import { importSchemas } from "../schema-importer.js";
-import { syncAllTables } from "../entity-sync.js";
-import { discoverConstraints } from "../constraint-discovery.js";
+import { ServiceNowConnector, createConnectorFromEnv } from "./client.js";
+import { importSchemas } from "./schema-importer.js";
+import { syncAllTables } from "./entity-sync.js";
+import { discoverConstraints } from "./constraint-discovery.js";
 import {
   ServiceNowMCPClient,
   parseMCPServerUrl,
-} from "../servicenow-mcp.js";
+} from "./mcp-proxy.js";
 import type { OntologyEngine } from "../../ontology/engine.js";
 
 const DEFAULT_TABLES = [

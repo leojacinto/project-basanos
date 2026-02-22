@@ -21,7 +21,7 @@ import { validateDomainSchema } from "./ontology/schema.js";
 import { loadDomainFromYaml, loadConstraintsFromYaml } from "./loader.js";
 import { generateAgentCard } from "./a2a/types.js";
 import { load as yamlLoad } from "js-yaml";
-import { ServiceNowMCPClient, parseMCPServerUrl } from "./connectors/servicenow-mcp.js";
+import { ServiceNowMCPClient, parseMCPServerUrl } from "./connectors/servicenow/mcp-proxy.js";
 import { ConnectorRegistry } from "./connectors/registry.js";
 import type { ConnectorPlugin } from "./connectors/types.js";
 
@@ -456,7 +456,7 @@ app.post("/api/demo/execute", express.json(), async (req, res) => {
 // ── Cross-system connectors (plugin registry) ───────────────
 
 console.log("\nLoading connector plugins...");
-const connectorRegistry = new ConnectorRegistry();
+const connectorRegistry = await ConnectorRegistry.create();
 const jiraPlugin = connectorRegistry.get("jira") as ConnectorPlugin & { getActiveDeploys?: () => Array<Record<string, string>>; getAllDeploys?: () => Array<Record<string, string>> } | undefined;
 
 // Register cross-system constraints from plugins
@@ -571,6 +571,40 @@ app.post("/api/demo/multi-execute", express.json(), async (req, res) => {
   }
 });
 
+// ── Connector Plugin API ──────────────────────────────────────
+
+app.get("/api/connectors", (_req, res) => {
+  const plugins = connectorRegistry.getAll().map((p) => ({
+    id: p.id,
+    label: p.label,
+    description: p.description,
+    configured: connectorRegistry.isConfigured(p.id),
+    envVars: p.getRequiredEnvVars().map((v) => ({
+      name: v.name,
+      description: v.description,
+      required: v.required,
+      secret: v.secret || false,
+      present: !!process.env[v.name],
+    })),
+    defaultTables: p.getDefaultTables(),
+  }));
+  res.json(plugins);
+});
+
+app.post("/api/connectors/:id/test", async (req, res) => {
+  const plugin = connectorRegistry.get(req.params.id);
+  if (!plugin) return res.status(404).json({ error: "Connector not found" });
+  if (!connectorRegistry.isConfigured(req.params.id)) {
+    return res.json({ success: false, message: "Connector not configured - missing required env vars" });
+  }
+  try {
+    const result = await plugin.testConnection();
+    res.json(result);
+  } catch (err) {
+    res.json({ success: false, message: String(err) });
+  }
+});
+
 app.get("/api/agent-card", (_req, res) => {
   const card = generateAgentCard({
     url: "stdio://basanos",
@@ -617,7 +651,7 @@ app.post("/api/connect", async (req, res) => {
     return res.status(400).json({ error: "Missing instanceUrl" });
   }
   try {
-    const { ServiceNowConnector } = await import("./connectors/servicenow.js");
+    const { ServiceNowConnector } = await import("./connectors/servicenow/client.js");
     type AuthMode = "basic" | "oauth_client_credentials" | "oauth_password";
     let authMode: AuthMode = "basic";
     if (clientId && clientSecret && username && password) authMode = "oauth_password";
@@ -641,10 +675,10 @@ app.post("/api/import", async (req, res) => {
     return res.status(400).json({ error: "Missing instanceUrl" });
   }
   try {
-    const { ServiceNowConnector } = await import("./connectors/servicenow.js");
-    const { importSchemas } = await import("./connectors/schema-importer.js");
-    const { syncAllTables } = await import("./connectors/entity-sync.js");
-    const { discoverConstraints } = await import("./connectors/constraint-discovery.js");
+    const { ServiceNowConnector } = await import("./connectors/servicenow/client.js");
+    const { importSchemas } = await import("./connectors/servicenow/schema-importer.js");
+    const { syncAllTables } = await import("./connectors/servicenow/entity-sync.js");
+    const { discoverConstraints } = await import("./connectors/servicenow/constraint-discovery.js");
 
     type AuthMode = "basic" | "oauth_client_credentials" | "oauth_password";
     let authMode: AuthMode = "basic";
@@ -1088,6 +1122,7 @@ function dashboardHtml(): string {
     <button onclick="showTab('constraints')">Constraints</button>
     <button onclick="showTab('agent-card')">Agent Card</button>
     <button onclick="showTab('audit')">Audit Trail</button>
+    <button onclick="showTab('connectors')">Connectors</button>
     <button onclick="showTab('connect')">Connect</button>
     <button onclick="showTab('demo')" style="color:var(--success);">Single-system Demo</button>
     <button onclick="showTab('multi-demo')" style="color:var(--success);">Multi-system Demo</button>
@@ -1198,7 +1233,7 @@ function dashboardHtml(): string {
   async function showTab(tab) {
     currentTab = tab;
     document.querySelectorAll('nav button').forEach((b, i) => {
-      const tabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit', 'connect', 'demo', 'multi-demo', 'discovery-rules'];
+      const tabs = ['overview', 'entities', 'constraints', 'agent-card', 'audit', 'connectors', 'connect', 'demo', 'multi-demo', 'discovery-rules'];
       b.classList.toggle('active', tabs[i] === tab);
     });
     const el = document.getElementById('content');
@@ -1217,6 +1252,7 @@ function dashboardHtml(): string {
       }
     } else {
       switch (tab) {
+        case 'connectors': await renderConnectors(el); break;
         case 'connect': await renderConnect(el); break;
         case 'demo': await renderDemo(el); break;
         case 'multi-demo': await renderMultiDemo(el); break;
@@ -2077,6 +2113,85 @@ function dashboardHtml(): string {
       demoAddMessage('basanos', '<span style="color:#e74c3c;">Request failed: ' + err + '</span>');
     }
   }
+
+  async function renderConnectors(el) {
+    let connectors = [];
+    try {
+      const res = await fetch('/api/connectors');
+      connectors = await res.json();
+    } catch (e) { el.innerHTML = '<div class="empty-state">Failed to load connectors</div>'; return; }
+
+    el.innerHTML = '<h2>Connector Plugins</h2>' +
+      '<p style="color:var(--text-secondary);margin-bottom:1.5rem;">' +
+      'Auto-discovered from <code>src/connectors/*/index.ts</code>. ' +
+      'Each plugin implements the <strong>ConnectorPlugin</strong> interface.' +
+      '</p>' +
+      connectors.map(function(c) {
+        var statusBadge = c.configured
+          ? '<span class="badge badge-success">CONFIGURED</span>'
+          : '<span class="badge badge-block">NOT CONFIGURED</span>';
+
+        var envRows = c.envVars.map(function(v) {
+          var icon = v.present ? '\u2705' : (v.required ? '\u274C' : '\u2B1C');
+          var val = v.present ? 'set' : 'missing';
+          return '<tr>' +
+            '<td style="font-family:monospace;font-size:0.8rem;">' + v.name + '</td>' +
+            '<td>' + v.description + '</td>' +
+            '<td>' + (v.required ? '<strong>required</strong>' : 'optional') + '</td>' +
+            '<td>' + icon + ' ' + val + '</td>' +
+            '</tr>';
+        }).join('');
+
+        var tablesStr = c.defaultTables.map(function(t) {
+          return '<span class="badge badge-type">' + t + '</span>';
+        }).join(' ');
+
+        return '<div class="card" style="margin-bottom:1.5rem;">' +
+          '<h2>' + c.label + ' ' + statusBadge +
+          '<span style="font-size:0.75rem;color:var(--text-secondary);margin-left:0.5rem;">id: ' + c.id + '</span></h2>' +
+          '<p style="color:var(--text-secondary);margin-bottom:1rem;">' + c.description + '</p>' +
+          '<h3 style="font-size:0.9rem;margin-bottom:0.5rem;">Environment Variables</h3>' +
+          '<table style="width:100%;font-size:0.85rem;border-collapse:collapse;margin-bottom:1rem;">' +
+          '<thead><tr style="text-align:left;border-bottom:1px solid var(--border);">' +
+          '<th style="padding:0.3rem 0.5rem;">Variable</th>' +
+          '<th style="padding:0.3rem 0.5rem;">Description</th>' +
+          '<th style="padding:0.3rem 0.5rem;">Required</th>' +
+          '<th style="padding:0.3rem 0.5rem;">Status</th>' +
+          '</tr></thead><tbody>' + envRows + '</tbody></table>' +
+          '<h3 style="font-size:0.9rem;margin-bottom:0.5rem;">Default Tables</h3>' +
+          '<div style="margin-bottom:1rem;">' + tablesStr + '</div>' +
+          '<div style="display:flex;align-items:center;gap:1rem;margin-top:0.5rem;">' +
+          '<button onclick="testConnector(\\x27' + c.id + '\\x27, this)" ' +
+          (c.configured ? '' : 'disabled ') +
+          'style="font-size:0.85rem;padding:0.5rem 1.25rem;border-radius:0.375rem;' +
+          'background:' + (c.configured ? 'var(--accent)' : 'var(--border)') + ';' +
+          'color:' + (c.configured ? 'var(--bg)' : 'var(--text-secondary)') + ';' +
+          'border:none;cursor:' + (c.configured ? 'pointer' : 'not-allowed') + ';font-weight:600;">' +
+          (c.configured ? 'Test Connection' : 'Not Configured') +
+          '</button>' +
+          '<span id="test-result-' + c.id + '" style="font-size:0.85rem;"></span>' +
+          '</div>' +
+          '</div>';
+      }).join('');
+  }
+
+  window.testConnector = async function(id, btn) {
+    var resultEl = document.getElementById('test-result-' + id);
+    btn.disabled = true;
+    btn.textContent = 'Testing...';
+    resultEl.textContent = '';
+    try {
+      var res = await fetch('/api/connectors/' + id + '/test', { method: 'POST' });
+      var data = await res.json();
+      resultEl.style.color = data.success ? 'var(--success)' : 'var(--danger)';
+      resultEl.textContent = (data.success ? '\u2705 ' : '\u274C ') + data.message;
+    } catch (e) {
+      resultEl.style.color = 'var(--danger)';
+      resultEl.textContent = '\u274C ' + String(e);
+    }
+    btn.disabled = false;
+    btn.textContent = 'Test Connection';
+  };
 
   async function renderConnect(el) {
     // Pre-populate from server-side .env

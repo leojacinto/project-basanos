@@ -1,6 +1,6 @@
 {
   "source": "https://demoalectriallwfza130373.service-now.com/",
-  "importedAt": "2026-02-21T12:28:09.131Z",
+  "importedAt": "2026-02-22T07:53:20.658Z",
   "pipeline": "basanos cli import",
   "tablesImported": 6,
   "fieldsImported": 310,
@@ -13,7 +13,7 @@
     "problem",
     "sys_user_group"
   ],
-  "discoveredAt": "2026-02-21T12:28:15.063Z",
+  "discoveredAt": "2026-02-22T07:53:26.909Z",
   "constraintsDiscovered": 9,
   "discoveryEvidence": [
     {
@@ -50,7 +50,7 @@
       "id": "servicenow-live:discovered:major_incident_no_problem",
       "name": "Major Incident Without Problem Record (Discovered)",
       "severity": "warn",
-      "evidence": "24 resolved P1s without problem records"
+      "evidence": "25 resolved P1s without problem records"
     },
     {
       "id": "servicenow-live:discovered:recurring_ci_failures",

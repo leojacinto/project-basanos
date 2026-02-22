@@ -346,9 +346,8 @@ Basanos uses a plugin system for connecting to external systems. Each connector 
 
 1. Create `src/connectors/yourconnector/index.ts`
 2. Export a `createPlugin()` function that returns a `ConnectorPlugin`
-3. Register it in `src/connectors/registry.ts` (one import, one line in the array)
 
-That is it. No changes to the CLI, dashboard, or rules engine.
+That is it. The registry auto-discovers plugins by scanning `src/connectors/*/index.ts` at startup. No changes to the CLI, dashboard, registry, or rules engine.
 
 ### The mandatory contract
 
@@ -447,18 +446,7 @@ export function createPlugin(): ConnectorPlugin {
 }
 ```
 
-Then register it:
-
-```typescript
-// src/connectors/registry.ts
-import { createPlugin as createYourPlugin } from "./yourconnector/index.js";
-
-const AVAILABLE_PLUGINS = [
-  createServiceNowPlugin,
-  createJiraPlugin,
-  createYourPlugin,  // add here
-];
-```
+The registry will find it automatically at startup - no registration step needed.
 
 ## Starting Domain: ITSM
 

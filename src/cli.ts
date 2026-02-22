@@ -45,7 +45,7 @@ async function main() {
   }
 
   console.log("Loading connector plugins...");
-  const registry = new ConnectorRegistry();
+  const registry = await ConnectorRegistry.create();
   const connector = registry.getPrimary();
 
   if (!connector) {

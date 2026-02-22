@@ -7,7 +7,7 @@
 
 import { writeFileSync, mkdirSync } from "fs";
 import { dump as yamlDump } from "js-yaml";
-import type { ServiceNowConnector, DictionaryEntry } from "./servicenow.js";
+import type { ServiceNowConnector, DictionaryEntry } from "./client.js";
 
 /**
  * Map ServiceNow internal types to Basanos property types.
