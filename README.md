@@ -244,6 +244,11 @@ Then restart: `docker compose up`
 
 The dashboard will use your real credentials. Go to the **Connect** tab to import schemas and discover constraints, then use the **Demo** tab to test constraint enforcement against live data.
 
+## Developers
+
+- **Leo Francia** - Creator, architect, maintainer
+- **Claude (Anthropic)** - AI pair programmer and development partner. Contributed to plugin architecture, connector refactoring, dashboard UI, constraint engine, documentation, and CI/CD automation.
+
 ## Quick Start (Developer)
 
 ```bash
